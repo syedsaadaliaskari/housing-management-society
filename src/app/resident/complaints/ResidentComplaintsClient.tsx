@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -40,6 +41,14 @@ type ResidentComplaint = {
   created_at: string;
 };
 
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-PK", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function ResidentComplaintsClient() {
   const [complaints, setComplaints] = useState<ResidentComplaint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,9 +56,10 @@ export function ResidentComplaintsClient() {
 
   const [complaintSubject, setComplaintSubject] = useState("");
   const [complaintDescription, setComplaintDescription] = useState("");
-  const [complaintPriority, setComplaintPriority] = useState<string | undefined>(
-    "MEDIUM",
-  );
+  const [complaintPriority, setComplaintPriority] = useState<
+    string | undefined
+  >("MEDIUM");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -80,31 +90,36 @@ export function ResidentComplaintsClient() {
       return;
     }
 
-    const res = await fetch("/api/resident/complaints", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subject: complaintSubject,
-        description: complaintDescription,
-        priority: complaintPriority,
-      }),
-    });
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/resident/complaints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: complaintSubject,
+          description: complaintDescription,
+          priority: complaintPriority,
+        }),
+      });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      setError(body?.error ?? "Failed to submit complaint");
-      return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? "Failed to submit complaint");
+        return;
+      }
+
+      const refreshed = await fetch("/api/resident/complaints");
+      if (refreshed.ok) {
+        const data = (await refreshed.json()) as ResidentComplaint[];
+        setComplaints(data);
+      }
+
+      setComplaintSubject("");
+      setComplaintDescription("");
+      setComplaintPriority("MEDIUM");
+    } finally {
+      setSubmitting(false);
     }
-
-    const refreshed = await fetch("/api/resident/complaints");
-    if (refreshed.ok) {
-      const data = (await refreshed.json()) as ResidentComplaint[];
-      setComplaints(data);
-    }
-
-    setComplaintSubject("");
-    setComplaintDescription("");
-    setComplaintPriority("MEDIUM");
   };
 
   return (
@@ -127,16 +142,18 @@ export function ResidentComplaintsClient() {
                 value={complaintSubject}
                 onChange={(e) => setComplaintSubject(e.target.value)}
                 required
+                placeholder="e.g. Water leakage in corridor"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="complaintDescription">Description</Label>
-              <Input
+              <Textarea
                 id="complaintDescription"
                 value={complaintDescription}
                 onChange={(e) => setComplaintDescription(e.target.value)}
                 required
                 placeholder="Briefly describe the issue or suggestion"
+                rows={4}
               />
             </div>
             <div className="space-y-2">
@@ -156,7 +173,9 @@ export function ResidentComplaintsClient() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit">Submit</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit"}
+            </Button>
           </form>
         </CardContent>
       </Card>
@@ -176,54 +195,63 @@ export function ResidentComplaintsClient() {
               You have not submitted any complaints yet.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {complaints.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{c.subject}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          c.status === "RESOLVED" || c.status === "CLOSED"
-                            ? "default"
-                            : c.status === "IN_PROGRESS"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {c.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          c.priority === "URGENT"
-                            ? "destructive"
-                            : c.priority === "HIGH"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {c.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{c.created_at}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Priority
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Created
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {complaints.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="max-w-48 truncate">
+                        {c.subject}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            c.status === "RESOLVED" || c.status === "CLOSED"
+                              ? "default"
+                              : c.status === "IN_PROGRESS"
+                                ? "secondary"
+                                : "outline"
+                          }
+                        >
+                          {c.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge
+                          variant={
+                            c.priority === "URGENT"
+                              ? "destructive"
+                              : c.priority === "HIGH"
+                                ? "secondary"
+                                : "outline"
+                          }
+                        >
+                          {c.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                        {formatDate(c.created_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

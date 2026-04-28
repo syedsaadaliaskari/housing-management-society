@@ -20,7 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
 type ResidentSos = {
@@ -34,12 +40,24 @@ type ResidentSos = {
   resolved_at: string | null;
 };
 
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-PK", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function ResidentSosClient() {
   const [alerts, setAlerts] = useState<ResidentSos[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const [sosAlertType, setSosAlertType] = useState<string | undefined>("MEDICAL");
+  const [sosAlertType, setSosAlertType] = useState<string | undefined>(
+    "MEDICAL",
+  );
   const [sosMessage, setSosMessage] = useState("");
 
   useEffect(() => {
@@ -71,40 +89,46 @@ export function ResidentSosClient() {
       return;
     }
 
-    const res = await fetch("/api/resident/sos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        alertType: sosAlertType,
-        message: sosMessage || null,
-      }),
-    });
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/resident/sos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          alertType: sosAlertType,
+          message: sosMessage || null,
+        }),
+      });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      setError(body?.error ?? "Failed to trigger alert");
-      return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? "Failed to trigger alert");
+        return;
+      }
+
+      const refreshed = await fetch("/api/resident/sos");
+      if (refreshed.ok) {
+        const data = (await refreshed.json()) as ResidentSos[];
+        setAlerts(data);
+      }
+
+      setSosAlertType("MEDICAL");
+      setSosMessage("");
+    } finally {
+      setSubmitting(false);
     }
-
-    const refreshed = await fetch("/api/resident/sos");
-    if (refreshed.ok) {
-      const data = (await refreshed.json()) as ResidentSos[];
-      setAlerts(data);
-    }
-
-    setSosAlertType("MEDICAL");
-    setSosMessage("");
   };
 
   return (
     <div className="space-y-6">
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <Card>
+      <Card className="border-destructive/40">
         <CardHeader>
-          <CardTitle>Trigger SOS alert</CardTitle>
+          <CardTitle className="text-destructive">Trigger SOS Alert</CardTitle>
           <CardDescription>
-            Use for emergencies only. Alerts will be visible to security/admin.
+            Use for emergencies only. Alerts will be visible to security and
+            admin immediately.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,8 +159,13 @@ export function ResidentSosClient() {
                 placeholder="Short description of the emergency"
               />
             </div>
-            <Button type="submit" variant="destructive">
-              Trigger SOS
+            <Button
+              type="submit"
+              variant="destructive"
+              className="w-full sm:w-auto"
+              disabled={submitting}
+            >
+              {submitting ? "Sending..." : "Trigger SOS"}
             </Button>
           </form>
         </CardContent>
@@ -144,7 +173,7 @@ export function ResidentSosClient() {
 
       <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle>My alerts</CardTitle>
+          <CardTitle>My Alerts</CardTitle>
           <CardDescription>
             Emergency alerts you have raised and their status.
           </CardDescription>
@@ -157,42 +186,53 @@ export function ResidentSosClient() {
               You have not raised any emergency alerts.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Resolved</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {alerts.map((a) => (
-                  <TableRow key={a.id}>
-                    <TableCell>{a.alert_type}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          a.status === "ACTIVE"
-                            ? "destructive"
-                            : a.status === "ACKNOWLEDGED"
-                            ? "secondary"
-                            : "default"
-                        }
-                      >
-                        {a.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{a.created_at}</TableCell>
-                    <TableCell>{a.resolved_at ?? "-"}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Created
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Resolved
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {alerts.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="font-medium">
+                        {a.alert_type}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            a.status === "ACTIVE"
+                              ? "destructive"
+                              : a.status === "ACKNOWLEDGED"
+                                ? "secondary"
+                                : "default"
+                          }
+                        >
+                          {a.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                        {formatDate(a.created_at)}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                        {formatDate(a.resolved_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

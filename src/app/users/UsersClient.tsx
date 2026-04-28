@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -12,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type User = {
   id: number;
@@ -67,11 +68,9 @@ export function UsersClient() {
 
   useEffect(() => {
     let result = users;
-
     if (roleFilter !== "ALL") {
       result = result.filter((u) => u.role === roleFilter);
     }
-
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -82,14 +81,8 @@ export function UsersClient() {
             .includes(q),
       );
     }
-
     setFiltered(result);
   }, [search, roleFilter, users]);
-
-  if (loading)
-    return <p className="text-sm text-muted-foreground">Loading users...</p>;
-
-  if (error) return <p className="text-sm text-red-500">{error}</p>;
 
   return (
     <div className="space-y-4">
@@ -102,7 +95,7 @@ export function UsersClient() {
           className="max-w-sm"
         />
         <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="Filter by role" />
           </SelectTrigger>
           <SelectContent>
@@ -118,19 +111,45 @@ export function UsersClient() {
       </div>
 
       {/* TABLE */}
-      {filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No users found.</p>
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="size-8 rounded-full shrink-0" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-40 hidden sm:block" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-16 rounded-full hidden sm:block" />
+              <Skeleton className="h-4 w-24 hidden md:block" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+          <span>⚠</span>
+          <span>{error}</span>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+          <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+            👤
+          </div>
+          <p className="font-medium text-sm">No users found</p>
+          <p className="text-xs text-muted-foreground">
+            Try adjusting your search or filter.
+          </p>
+        </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead className="hidden sm:table-cell">Email</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Joined</TableHead>
+                <TableHead className="hidden sm:table-cell">Status</TableHead>
+                <TableHead className="hidden md:table-cell">Phone</TableHead>
+                <TableHead className="hidden md:table-cell">Joined</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -155,7 +174,7 @@ export function UsersClient() {
                         <span className="font-medium">{fullName}</span>
                       </Link>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                       {u.email}
                     </TableCell>
                     <TableCell>
@@ -167,16 +186,20 @@ export function UsersClient() {
                         {u.role}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge variant={u.is_active ? "default" : "secondary"}>
                         {u.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                       {u.phone_primary ?? "—"}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(u.created_at).toLocaleDateString()}
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                      {new Date(u.created_at).toLocaleDateString("en-PK", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </TableCell>
                   </TableRow>
                 );

@@ -1,11 +1,20 @@
 import {
   Home,
-  Inbox,
-  Calendar,
-  Search,
-  Settings,
+  Users,
+  Building2,
+  History,
+  Car,
+  FileText,
+  CreditCard,
+  Receipt,
+  BarChart3,
+  Bell,
+  MessageSquareWarning,
+  Siren,
+  Vote,
   User2,
   ChevronUp,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,22 +51,22 @@ const adminMemberPropertyItems = [
   {
     title: "Members",
     url: "/members",
-    icon: User2,
+    icon: Users,
   },
   {
     title: "Units & Properties",
     url: "/units",
-    icon: Inbox,
+    icon: Building2,
   },
   {
     title: "Ownership History",
     url: "/ownerships",
-    icon: Calendar,
+    icon: History,
   },
   {
     title: "Vehicles",
     url: "/vehicles",
-    icon: Search,
+    icon: Car,
   },
 ];
 
@@ -65,22 +74,22 @@ const adminFinanceItems = [
   {
     title: "Maintenance & Utility Bills",
     url: "/billing",
-    icon: Inbox,
+    icon: FileText,
   },
   {
     title: "Payments",
     url: "/payments",
-    icon: Calendar,
+    icon: CreditCard,
   },
   {
     title: "Expenses",
     url: "/expenses",
-    icon: Search,
+    icon: Receipt,
   },
   {
     title: "Financial Reports",
     url: "/reports",
-    icon: Settings,
+    icon: BarChart3,
   },
 ];
 
@@ -88,22 +97,22 @@ const adminCommunicationItems = [
   {
     title: "Notices",
     url: "/notices",
-    icon: Inbox,
+    icon: Bell,
   },
   {
     title: "Complaints & Requests",
     url: "/complaints",
-    icon: Inbox,
+    icon: MessageSquareWarning,
   },
   {
     title: "Emergency Alerts (SOS)",
     url: "/sos",
-    icon: Calendar,
+    icon: Siren,
   },
   {
     title: "Polls & Voting",
     url: "/polls",
-    icon: Settings,
+    icon: Vote,
   },
 ];
 
@@ -120,30 +129,35 @@ const residentCommunityItems = [
   {
     title: "Notice Board",
     url: "/resident/notices",
-    icon: Inbox,
+    icon: Bell,
   },
   {
     title: "Complaints & Suggestions",
     url: "/resident/complaints",
-    icon: Inbox,
+    icon: MessageSquareWarning,
   },
   {
     title: "Emergency Alerts (SOS)",
     url: "/resident/sos",
-    icon: Calendar,
+    icon: Siren,
   },
   {
     title: "Polls & Voting",
     url: "/resident/polls",
-    icon: Settings,
+    icon: Vote,
   },
 ];
 
 const residentFinanceItems = [
   {
+    title: "My Bills",
+    url: "/resident/bills",
+    icon: FileText,
+  },
+  {
     title: "My Payments",
     url: "/resident/payments",
-    icon: Calendar,
+    icon: CreditCard,
   },
 ];
 

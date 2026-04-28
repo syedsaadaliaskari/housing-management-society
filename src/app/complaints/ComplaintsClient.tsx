@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -27,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Complaint = {
   id: number;
@@ -72,7 +73,6 @@ export function ComplaintsClient() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
-  // form state
   const [memberId, setMemberId] = useState("");
   const [unitId, setUnitId] = useState("");
   const [subject, setSubject] = useState("");
@@ -123,12 +123,10 @@ export function ComplaintsClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, status }),
       });
-
       if (!res.ok) {
         toast.error("Failed to update status");
         return;
       }
-
       toast.success("Complaint status updated");
       setComplaints((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status } : c)),
@@ -157,13 +155,11 @@ export function ComplaintsClient() {
           priority,
         }),
       });
-
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         toast.error(body?.error ?? "Failed to log complaint");
         return;
       }
-
       toast.success("Complaint logged successfully");
       setMemberId("");
       setUnitId("");
@@ -222,12 +218,13 @@ export function ComplaintsClient() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Input
+                <Textarea
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   required
-                  placeholder="Short summary of the issue"
+                  placeholder="Detailed description of the issue"
+                  rows={4}
                 />
               </div>
               <div className="space-y-2">
@@ -249,7 +246,14 @@ export function ComplaintsClient() {
                 disabled={submitting}
                 className="w-full sm:w-auto"
               >
-                {submitting ? "Logging..." : "Log complaint"}
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Logging...
+                  </span>
+                ) : (
+                  "Log complaint"
+                )}
               </Button>
             </form>
           </CardContent>
@@ -289,7 +293,6 @@ export function ComplaintsClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by subject, member or unit..."
@@ -315,9 +318,18 @@ export function ComplaintsClient() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">
-              Loading complaints...
-            </p>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-24 hidden sm:block" />
+                  <Skeleton className="h-4 w-16 hidden md:block" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-8 w-32 hidden lg:block" />
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No complaints found.
