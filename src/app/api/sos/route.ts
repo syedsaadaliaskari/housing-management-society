@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 
@@ -17,17 +16,14 @@ type SosRow = {
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || (session.user as any).role !== "ADMIN") {
-    return null;
-  }
+  if (!session || (session.user as any).role !== "ADMIN") return null;
   return session;
 }
 
 export async function GET(_req: NextRequest) {
   const session = await requireAdmin();
-  if (!session) {
+  if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const rows = (await (sql as any)`
     SELECT
@@ -51,9 +47,8 @@ export async function GET(_req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await requireAdmin();
-  if (!session) {
+  if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await req.json();
   const { memberId, unitId, alertType, message } = body as {
@@ -63,27 +58,19 @@ export async function POST(req: NextRequest) {
     message?: string | null;
   };
 
-  if (!memberId || !alertType) {
+  if (!memberId || !alertType)
     return NextResponse.json(
       { error: "Missing required fields" },
-      { status: 400 }
+      { status: 400 },
     );
-  }
 
   const rows = (await (sql as any)`
     INSERT INTO emergency_alerts (
-      member_id,
-      unit_id,
-      alert_type,
-      message,
-      status
+      member_id, unit_id, alert_type, message, status
     )
     VALUES (
-      ${memberId},
-      ${unitId ?? null},
-      ${alertType},
-      ${message ?? null},
-      'ACTIVE'
+      ${memberId}, ${unitId ?? null}, ${alertType},
+      ${message ?? null}, 'ACTIVE'
     )
     RETURNING id
   `) as { id: number }[];
@@ -91,3 +78,40 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(rows[0], { status: 201 });
 }
 
+export async function PATCH(req: NextRequest) {
+  const session = await requireAdmin();
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json();
+  const { id, action } = body as {
+    id?: number;
+    action?: "acknowledge" | "resolve";
+  };
+
+  if (!id || !action)
+    return NextResponse.json(
+      { error: "Missing id or action" },
+      { status: 400 },
+    );
+
+  if (action === "acknowledge") {
+    await (sql as any)`
+      UPDATE emergency_alerts
+      SET status = 'ACKNOWLEDGED', acknowledged_at = NOW()
+      WHERE id = ${id} AND status = 'ACTIVE'
+    `;
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "resolve") {
+    await (sql as any)`
+      UPDATE emergency_alerts
+      SET status = 'RESOLVED', resolved_at = NOW()
+      WHERE id = ${id} AND status IN ('ACTIVE', 'ACKNOWLEDGED')
+    `;
+    return NextResponse.json({ ok: true });
+  }
+
+  return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+}

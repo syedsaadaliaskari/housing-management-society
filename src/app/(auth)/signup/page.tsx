@@ -2,19 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Building2, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -40,14 +29,12 @@ export default function SignupPage() {
       setError("Passwords do not match.");
       return;
     }
-
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
     }
 
     setIsSubmitting(true);
-
     try {
       const res = await fetch("/api/signup", {
         method: "POST",
@@ -63,7 +50,6 @@ export default function SignupPage() {
       });
 
       const data = await res.json();
-
       if (!res.ok) {
         setError(data.error ?? "Something went wrong.");
         return;
@@ -79,73 +65,122 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 px-4 py-8">
-      <div className="w-full max-w-md space-y-6">
-        {/* HEADER */}
-        <div className="text-center space-y-1">
-          <div className="inline-flex items-center justify-center size-12 rounded-xl bg-primary text-primary-foreground mb-2">
-            <UserPlus size={22} />
+    <div className="min-h-screen flex">
+      {/* LEFT BRANDING PANEL */}
+      <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12 text-primary-foreground">
+        <div className="flex items-center gap-3">
+          <div className="size-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
+            <Building2 size={22} className="text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Housing Society
-          </h1>
-          <p className="text-sm text-muted-foreground">Management System</p>
+          <span className="text-lg font-semibold">HSMS</span>
         </div>
 
-        {/* SUCCESS STATE */}
-        {success ? (
-          <Card className="shadow-lg border">
-            <CardContent className="pt-6 text-center space-y-3">
-              <div className="text-4xl">✅</div>
-              <h2 className="text-lg font-semibold">Account Created!</h2>
+        <div className="space-y-6">
+          <h1 className="text-4xl font-bold leading-tight">
+            Join Your
+            <br />
+            Society Portal
+          </h1>
+          <p className="text-primary-foreground/70 text-lg leading-relaxed">
+            Register as a resident to access your bills, raise complaints, vote
+            in polls and trigger emergency alerts.
+          </p>
+          <div className="space-y-3">
+            {[
+              "View and pay your maintenance bills",
+              "Submit and track complaints",
+              "Participate in society polls",
+              "Trigger SOS emergency alerts",
+            ].map((f) => (
+              <div key={f} className="flex items-center gap-3">
+                <div className="size-5 rounded-full bg-primary-foreground/20 flex items-center justify-center shrink-0">
+                  <span className="text-xs">✓</span>
+                </div>
+                <span className="text-sm text-primary-foreground/80">{f}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-xs text-primary-foreground/50">
+          © 2026 Housing Society Management System. Final Year Project.
+        </p>
+      </div>
+
+      {/* RIGHT FORM PANEL */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 bg-background overflow-y-auto">
+        <div className="w-full max-w-sm space-y-8">
+          {/* MOBILE LOGO */}
+          <div className="flex lg:hidden items-center gap-3">
+            <div className="size-10 rounded-xl bg-primary flex items-center justify-center">
+              <Building2 size={20} className="text-primary-foreground" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">HSMS</p>
+              <p className="text-xs text-muted-foreground">
+                Housing Society Management
+              </p>
+            </div>
+          </div>
+
+          {success ? (
+            /* SUCCESS STATE */
+            <div className="text-center space-y-4 py-8">
+              <CheckCircle2 size={56} className="mx-auto text-primary" />
+              <h2 className="text-2xl font-bold">Account Created!</h2>
               <p className="text-sm text-muted-foreground">
                 Your account has been created successfully. Redirecting you to
                 the login page...
               </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="shadow-lg border">
-            <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-xl font-semibold">
-                Create account
-              </CardTitle>
-              <CardDescription>
-                Register as a resident. You will need your unit number provided
-                by the administrator.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+              <div className="size-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold tracking-tight">
+                  Create account
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Register as a resident using your unit number.
+                </p>
+              </div>
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* NAME ROW */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">First name</Label>
-                    <Input
+                    <label htmlFor="firstName" className="text-sm font-medium">
+                      First name
+                    </label>
+                    <input
                       id="firstName"
                       required
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder="Ali"
-                      className="h-10"
+                      className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">Last name</Label>
-                    <Input
+                    <label htmlFor="lastName" className="text-sm font-medium">
+                      Last name
+                    </label>
+                    <input
                       id="lastName"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       placeholder="Khan"
-                      className="h-10"
+                      className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                     />
                   </div>
                 </div>
 
                 {/* EMAIL */}
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
-                  <Input
+                  <label htmlFor="email" className="text-sm font-medium">
+                    Email address
+                  </label>
+                  <input
                     id="email"
                     type="email"
                     autoComplete="email"
@@ -153,45 +188,51 @@ export default function SignupPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="h-10"
+                    className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                   />
                 </div>
 
                 {/* PHONE */}
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone number</Label>
-                  <Input
+                  <label htmlFor="phone" className="text-sm font-medium">
+                    Phone number
+                  </label>
+                  <input
                     id="phone"
                     type="tel"
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="03001234567"
-                    className="h-10"
+                    className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                   />
                 </div>
 
                 {/* UNIT CODE */}
                 <div className="space-y-2">
-                  <Label htmlFor="unitCode">Unit number</Label>
-                  <Input
+                  <label htmlFor="unitCode" className="text-sm font-medium">
+                    Unit number
+                  </label>
+                  <input
                     id="unitCode"
                     required
                     value={unitCode}
                     onChange={(e) => setUnitCode(e.target.value)}
                     placeholder="e.g. A-101"
-                    className="h-10"
+                    className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Your unit number is provided by the society administrator.
+                    Provided by your society administrator.
                   </p>
                 </div>
 
                 {/* PASSWORD */}
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <label htmlFor="password" className="text-sm font-medium">
+                    Password
+                  </label>
                   <div className="relative">
-                    <Input
+                    <input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
@@ -199,7 +240,7 @@ export default function SignupPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Min. 8 characters"
-                      className="h-10 pr-10"
+                      className="w-full h-11 px-4 pr-11 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                     />
                     <button
                       type="button"
@@ -213,9 +254,14 @@ export default function SignupPage() {
 
                 {/* CONFIRM PASSWORD */}
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm password</Label>
+                  <label
+                    htmlFor="confirmPassword"
+                    className="text-sm font-medium"
+                  >
+                    Confirm password
+                  </label>
                   <div className="relative">
-                    <Input
+                    <input
                       id="confirmPassword"
                       type={showConfirm ? "text" : "password"}
                       autoComplete="new-password"
@@ -223,7 +269,7 @@ export default function SignupPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Re-enter your password"
-                      className="h-10 pr-10"
+                      className="w-full h-11 px-4 pr-11 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                     />
                     <button
                       type="button"
@@ -235,31 +281,28 @@ export default function SignupPage() {
                   </div>
                 </div>
 
-                {/* ERROR */}
                 {error && (
-                  <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2.5">
                     <span>⚠</span>
                     <span>{error}</span>
                   </div>
                 )}
 
-                {/* SUBMIT */}
-                <Button
+                <button
                   type="submit"
-                  className="w-full h-10"
                   disabled={isSubmitting}
+                  className="w-full h-11 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <>
+                      <span className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                       Creating account...
-                    </span>
+                    </>
                   ) : (
                     "Create account"
                   )}
-                </Button>
+                </button>
 
-                {/* LOGIN LINK */}
                 <p className="text-center text-sm text-muted-foreground">
                   Already have an account?{" "}
                   <Link
@@ -270,14 +313,13 @@ export default function SignupPage() {
                   </Link>
                 </p>
               </form>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* FOOTER */}
-        <p className="text-center text-xs text-muted-foreground">
-          Contact your administrator if you need help accessing the system.
-        </p>
+              <p className="text-center text-xs text-muted-foreground">
+                Contact your administrator if you need help.
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 
@@ -18,17 +17,14 @@ type ComplaintRow = {
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || (session.user as any).role !== "ADMIN") {
-    return null;
-  }
+  if (!session || (session.user as any).role !== "ADMIN") return null;
   return session;
 }
 
 export async function GET(_req: NextRequest) {
   const session = await requireAdmin();
-  if (!session) {
+  if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const rows = (await (sql as any)`
     SELECT
@@ -54,52 +50,34 @@ export async function GET(_req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await requireAdmin();
-  if (!session) {
+  if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await req.json();
-  const {
-    memberId,
-    unitId,
-    categoryId,
-    subject,
-    description,
-    priority,
-  } = body as {
-    memberId?: number;
-    unitId?: number | null;
-    categoryId?: number | null;
-    subject?: string;
-    description?: string;
-    priority?: string;
-  };
+  const { memberId, unitId, categoryId, subject, description, priority } =
+    body as {
+      memberId?: number;
+      unitId?: number | null;
+      categoryId?: number | null;
+      subject?: string;
+      description?: string;
+      priority?: string;
+    };
 
-  if (!memberId || !subject || !description || !priority) {
+  if (!memberId || !subject || !description || !priority)
     return NextResponse.json(
       { error: "Missing required fields" },
-      { status: 400 }
+      { status: 400 },
     );
-  }
 
   const rows = (await (sql as any)`
     INSERT INTO complaints (
-      member_id,
-      unit_id,
-      category_id,
-      subject,
-      description,
-      status,
-      priority
+      member_id, unit_id, category_id,
+      subject, description, status, priority
     )
     VALUES (
-      ${memberId},
-      ${unitId ?? null},
-      ${categoryId ?? null},
-      ${subject},
-      ${description},
-      'OPEN',
-      ${priority}
+      ${memberId}, ${unitId ?? null}, ${categoryId ?? null},
+      ${subject}, ${description}, 'OPEN', ${priority}
     )
     RETURNING id
   `) as { id: number }[];
@@ -107,3 +85,29 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(rows[0], { status: 201 });
 }
 
+export async function PATCH(req: NextRequest) {
+  const session = await requireAdmin();
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json();
+  const { id, status } = body as { id?: number; status?: string };
+
+  if (!id || !status)
+    return NextResponse.json(
+      { error: "Missing id or status" },
+      { status: 400 },
+    );
+
+  const allowed = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+  if (!allowed.includes(status))
+    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+
+  await (sql as any)`
+    UPDATE complaints
+    SET status = ${status}, updated_at = NOW()
+    WHERE id = ${id}
+  `;
+
+  return NextResponse.json({ ok: true });
+}

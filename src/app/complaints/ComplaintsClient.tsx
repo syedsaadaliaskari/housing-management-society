@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,111 +42,174 @@ type Complaint = {
   updated_at: string;
 };
 
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-PK", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+const statusColor: Record<string, string> = {
+  OPEN: "bg-red-500/20 text-red-600 border-red-500/30",
+  IN_PROGRESS: "bg-yellow-500/20 text-yellow-600 border-yellow-500/30",
+  RESOLVED: "bg-green-500/20 text-green-600 border-green-500/30",
+  CLOSED: "bg-gray-500/20 text-gray-600 border-gray-500/30",
+};
+
+const priorityColor: Record<string, string> = {
+  URGENT: "bg-red-500/20 text-red-600 border-red-500/30",
+  HIGH: "bg-orange-500/20 text-orange-600 border-orange-500/30",
+  MEDIUM: "bg-yellow-500/20 text-yellow-600 border-yellow-500/30",
+  LOW: "bg-gray-500/20 text-gray-600 border-gray-500/30",
+};
+
 export function ComplaintsClient() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [filtered, setFiltered] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
+  // form state
   const [memberId, setMemberId] = useState("");
   const [unitId, setUnitId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<string | undefined>("MEDIUM");
+  const [priority, setPriority] = useState("MEDIUM");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("/api/complaints");
-        if (!res.ok) {
-          throw new Error("Failed to load complaints");
-        }
-        const data = (await res.json()) as Complaint[];
-        setComplaints(data);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setError(null);
+  useEffect(() => {
+    let result = complaints;
+    if (statusFilter !== "ALL") {
+      result = result.filter((c) => c.status === statusFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.subject.toLowerCase().includes(q) ||
+          (c.member_name ?? "").toLowerCase().includes(q) ||
+          (c.unit_number ?? "").toLowerCase().includes(q),
+      );
+    }
+    setFiltered(result);
+  }, [search, statusFilter, complaints]);
 
-    if (!memberId || !subject || !description || !priority) {
-      setError("Member, subject, description, and priority are required");
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/complaints");
+      if (res.ok) {
+        const data = (await res.json()) as Complaint[];
+        setComplaints(data);
+        setFiltered(data);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleStatusChange = async (id: number, status: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch("/api/complaints", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to update status");
+        return;
+      }
+
+      toast.success("Complaint status updated");
+      setComplaints((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status } : c)),
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!memberId) {
+      toast.error("Member ID is required");
       return;
     }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/complaints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: Number(memberId),
+          unitId: unitId ? Number(unitId) : null,
+          subject,
+          description,
+          priority,
+        }),
+      });
 
-    const res = await fetch("/api/complaints", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        memberId: Number(memberId),
-        unitId: unitId ? Number(unitId) : null,
-        categoryId: categoryId ? Number(categoryId) : null,
-        subject,
-        description,
-        priority,
-      }),
-    });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Failed to log complaint");
+        return;
+      }
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      setError(body?.error ?? "Failed to log complaint");
-      return;
+      toast.success("Complaint logged successfully");
+      setMemberId("");
+      setUnitId("");
+      setSubject("");
+      setDescription("");
+      setPriority("MEDIUM");
+      await load();
+    } finally {
+      setSubmitting(false);
     }
-
-    const refreshed = await fetch("/api/complaints");
-    if (refreshed.ok) {
-      const data = (await refreshed.json()) as Complaint[];
-      setComplaints(data);
-    }
-
-    setMemberId("");
-    setUnitId("");
-    setCategoryId("");
-    setSubject("");
-    setDescription("");
-    setPriority("MEDIUM");
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Log Complaint / Request</CardTitle>
-          <CardDescription>
-            Capture issues and service requests raised by residents.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="memberId">Member ID</Label>
-                <Input
-                  id="memberId"
-                  value={memberId}
-                  onChange={(e) => setMemberId(e.target.value)}
-                  required
-                  placeholder="numeric ID from members"
-                />
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
+        {/* FORM */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Log Complaint</CardTitle>
+            <CardDescription>
+              Capture issues and service requests raised by residents.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="memberId">Member ID</Label>
+                  <Input
+                    id="memberId"
+                    value={memberId}
+                    onChange={(e) => setMemberId(e.target.value)}
+                    required
+                    placeholder="numeric ID"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="unitId">Unit ID (optional)</Label>
+                  <Input
+                    id="unitId"
+                    value={unitId}
+                    onChange={(e) => setUnitId(e.target.value)}
+                    placeholder="numeric ID"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="unitId">Unit ID (optional)</Label>
-                <Input
-                  id="unitId"
-                  value={unitId}
-                  onChange={(e) => setUnitId(e.target.value)}
-                  placeholder="numeric ID from units"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="subject">Subject</Label>
                 <Input
@@ -148,120 +217,194 @@ export function ComplaintsClient() {
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   required
+                  placeholder="e.g. Water leakage in corridor"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="categoryId">Category ID (optional)</Label>
+                <Label htmlFor="description">Description</Label>
                 <Input
-                  id="categoryId"
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  placeholder="numeric ID from complaint_categories"
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  required
+                  placeholder="Short summary of the issue"
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-                placeholder="Short summary of the issue"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Priority</Label>
-              <Select
-                value={priority}
-                onValueChange={(value) => setPriority(value)}
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select value={priority} onValueChange={setPriority}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Low</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="URGENT">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full sm:w-auto"
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LOW">Low</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="HIGH">High</SelectItem>
-                  <SelectItem value="URGENT">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button type="submit">Log complaint</Button>
-          </form>
-        </CardContent>
-      </Card>
+                {submitting ? "Logging..." : "Log complaint"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
+        {/* STATS STRIP */}
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"].map((s) => (
+              <Card
+                key={s}
+                className="cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() =>
+                  setStatusFilter((prev) => (prev === s ? "ALL" : s))
+                }
+              >
+                <CardContent className="pt-4 pb-3 px-4">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {s.replace("_", " ")}
+                  </p>
+                  <p className="text-2xl font-semibold">
+                    {complaints.filter((c) => c.status === s).length}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* TABLE */}
       <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle>Complaints &amp; Requests</CardTitle>
+          <CardTitle>Complaints & Requests</CardTitle>
           <CardDescription>
-            Latest complaints with their status and priority.
+            Click the status badge to update a complaint.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* FILTERS */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Input
+              placeholder="Search by subject, member or unit..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All</SelectItem>
+                <SelectItem value="OPEN">Open</SelectItem>
+                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                <SelectItem value="RESOLVED">Resolved</SelectItem>
+                <SelectItem value="CLOSED">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground self-center">
+              {filtered.length} complaint{filtered.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading complaints...</p>
-          ) : complaints.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No complaints logged yet.
+              Loading complaints...
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No complaints found.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Member</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {complaints.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{c.subject}</TableCell>
-                    <TableCell>{c.member_name ?? "-"}</TableCell>
-                    <TableCell>{c.unit_number ?? "-"}</TableCell>
-                    <TableCell>{c.category_name ?? "-"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          c.status === "RESOLVED" || c.status === "CLOSED"
-                            ? "default"
-                            : c.status === "IN_PROGRESS"
-                            ? "secondary"
-                            : "destructive"
-                        }
-                      >
-                        {c.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          c.priority === "URGENT"
-                            ? "destructive"
-                            : c.priority === "HIGH"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {c.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{c.created_at}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Member
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">Unit</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+                    <TableHead>Update</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="max-w-35">
+                        <div className="flex flex-col">
+                          <span className="font-medium truncate">
+                            {c.subject}
+                          </span>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {c.description}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                        {c.member_name ?? "—"}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {c.unit_number ?? "—"}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`text-xs font-semibold px-2 py-1 rounded-full border ${
+                            priorityColor[c.priority] ?? ""
+                          }`}
+                        >
+                          {c.priority}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`text-xs font-semibold px-2 py-1 rounded-full border ${
+                            statusColor[c.status] ?? ""
+                          }`}
+                        >
+                          {c.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                        {formatDate(c.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={c.status}
+                          onValueChange={(val) => handleStatusChange(c.id, val)}
+                          disabled={updatingId === c.id}
+                        >
+                          <SelectTrigger className="w-36 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="OPEN">Open</SelectItem>
+                            <SelectItem value="IN_PROGRESS">
+                              In Progress
+                            </SelectItem>
+                            <SelectItem value="RESOLVED">Resolved</SelectItem>
+                            <SelectItem value="CLOSED">Closed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

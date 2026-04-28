@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -26,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Member = {
   id: number;
@@ -47,7 +48,6 @@ export function MembersClient() {
   const [members, setMembers] = useState<Member[]>([]);
   const [filtered, setFiltered] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -57,25 +57,25 @@ export function MembersClient() {
   const [phonePrimary, setPhonePrimary] = useState("");
   const [ownershipStatus, setOwnershipStatus] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("/api/members");
-        if (!res.ok) throw new Error("Failed to load members");
-        const data = (await res.json()) as Member[];
-        setMembers(data);
-        setFiltered(data);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/members");
+      if (!res.ok) throw new Error("Failed to load members");
+      const data = (await res.json()) as Member[];
+      setMembers(data);
+      setFiltered(data);
+    } catch {
+      toast.error("Failed to load members");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     let result = members;
@@ -96,14 +96,10 @@ export function MembersClient() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!ownershipStatus) {
-      setFormError("Please select ownership status.");
+      toast.error("Please select ownership status.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/members", {
@@ -120,7 +116,7 @@ export function MembersClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to add member.");
+        toast.error(body?.error ?? "Failed to add member.");
         return;
       }
 
@@ -131,8 +127,7 @@ export function MembersClient() {
       setEmail("");
       setPhonePrimary("");
       setOwnershipStatus(undefined);
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
+      toast.success("Member added successfully.");
     } finally {
       setSubmitting(false);
     }
@@ -211,22 +206,6 @@ export function MembersClient() {
               </Select>
             </div>
 
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Member added successfully.</span>
-              </div>
-            )}
-
             <Button
               type="submit"
               disabled={submitting}
@@ -252,7 +231,6 @@ export function MembersClient() {
           <CardDescription>All residents in the society.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by name, email or phone..."
@@ -276,16 +254,27 @@ export function MembersClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading members...</p>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-40 hidden sm:block" />
+                  <Skeleton className="h-4 w-28 hidden md:block" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No members found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                👥
+              </div>
+              <p className="font-medium text-sm">No members found</p>
+              <p className="text-xs text-muted-foreground">
+                Add your first member using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>

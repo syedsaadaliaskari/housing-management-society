@@ -52,7 +52,6 @@ export async function GET(_req: NextRequest) {
       SELECT COALESCE(SUM(amount), 0) AS total_expense
       FROM society_expenses
     `) as ExpenseRow[];
-    console.log("✅ expense done");
 
     const [outstandingRow] = (await (sql as any)`
       SELECT COALESCE(SUM(balance_amount), 0) AS outstanding

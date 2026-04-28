@@ -7,53 +7,46 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "./ui/chart";
-import { TrendingUp } from "lucide-react";
+
+type OwnershipItem = {
+  ownership_status: string;
+  count: number;
+};
+
+const COLORS: Record<string, string> = {
+  OWNER: "var(--chart-1)",
+  TENANT: "var(--chart-2)",
+  BOTH: "var(--chart-3)",
+};
 
 const chartConfig = {
-  visitors: {
-    label: "Visitors",
-  },
-  chrome: {
-    label: "Chrome",
-    color: "var(--chart-1)",
-  },
-  safari: {
-    label: "Safari",
-    color: "var(--chart-2)",
-  },
-  firefox: {
-    label: "Firefox",
-    color: "var(--chart-3)",
-  },
-  edge: {
-    label: "Edge",
-    color: "var(--chart-4)",
-  },
-  other: {
-    label: "Other",
-    color: "var(--chart-5)",
-  },
+  OWNER: { label: "Owner", color: "var(--chart-1)" },
+  TENANT: { label: "Tenant", color: "var(--chart-2)" },
+  BOTH: { label: "Both", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
-const chartData = [
-  { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-  { browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-  { browser: "firefox", visitors: 287, fill: "var(--color-firefox)" },
-  { browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-  { browser: "other", visitors: 190, fill: "var(--color-other)" },
-];
+const AppPieChart = ({ data }: { data: OwnershipItem[] }) => {
+  const chartData = data.map((d) => ({
+    name: d.ownership_status,
+    value: d.count,
+    fill: COLORS[d.ownership_status] ?? "var(--chart-4)",
+  }));
 
-const AppPieChart = () => {
+  const total = chartData.reduce((acc, curr) => acc + curr.value, 0);
 
-  // If you don't use React compiler use useMemo hook to improve performance
-  const totalVisitors = chartData.reduce((acc, curr) => acc + curr.visitors, 0);
-  
+  if (total === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-8 text-center">
+        No member data yet.
+      </p>
+    );
+  }
+
   return (
-    <div className="">
-      <h1 className="text-lg font-medium mb-6">Browser Usage</h1>
+    <div className="space-y-4">
       <ChartContainer
         config={chartConfig}
-        className="mx-auto aspect-square max-h-[250px]"
+        className="mx-auto aspect-square max-h-55"
       >
         <PieChart>
           <ChartTooltip
@@ -62,10 +55,10 @@ const AppPieChart = () => {
           />
           <Pie
             data={chartData}
-            dataKey="visitors"
-            nameKey="browser"
-            innerRadius={60}
-            strokeWidth={5}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={55}
+            strokeWidth={4}
           >
             <Label
               content={({ viewBox }) => {
@@ -82,14 +75,14 @@ const AppPieChart = () => {
                         y={viewBox.cy}
                         className="fill-foreground text-3xl font-bold"
                       >
-                        {totalVisitors.toLocaleString()}
+                        {total}
                       </tspan>
                       <tspan
                         x={viewBox.cx}
-                        y={(viewBox.cy || 0) + 24}
-                        className="fill-muted-foreground"
+                        y={(viewBox.cy || 0) + 22}
+                        className="fill-muted-foreground text-xs"
                       >
-                        Visitors
+                        Members
                       </tspan>
                     </text>
                   );
@@ -99,13 +92,20 @@ const AppPieChart = () => {
           </Pie>
         </PieChart>
       </ChartContainer>
-      <div className="mt-4 flex flex-col gap-2 items-center">
-        <div className="flex items-center gap-2 font-medium leading-none">
-          Trending up by 5.2% this month <TrendingUp className="h-4 w-4 text-green-500" />
-        </div>
-        <div className="leading-none text-muted-foreground">
-          Showing total visitors for the last 6 months
-        </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center gap-3">
+        {chartData.map((d) => (
+          <div key={d.name} className="flex items-center gap-1.5">
+            <span
+              className="size-2.5 rounded-full shrink-0"
+              style={{ background: d.fill }}
+            />
+            <span className="text-xs text-muted-foreground">
+              {d.name} ({d.value})
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

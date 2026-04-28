@@ -1,11 +1,23 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -14,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 type Ownership = {
   id: number;
@@ -25,27 +38,66 @@ type Ownership = {
   sale_price: string | null;
 };
 
+type Member = {
+  id: number;
+  first_name: string;
+  last_name: string | null;
+};
+
+type Unit = {
+  id: number;
+  unit_number: string;
+};
+
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-PK", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatAmount(amount: string | null) {
+  if (!amount) return "—";
+  return `Rs ${Number(amount).toLocaleString()}`;
+}
+
 export function OwnershipsClient() {
   const [rows, setRows] = useState<Ownership[]>([]);
+  const [filtered, setFiltered] = useState<Ownership[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState("ALL");
 
-  const [unitId, setUnitId] = useState("");
-  const [ownerMemberId, setOwnerMemberId] = useState("");
+  const [unitId, setUnitId] = useState<string | undefined>();
+  const [ownerMemberId, setOwnerMemberId] = useState<string | undefined>();
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("/api/ownerships");
-        if (!res.ok) {
-          throw new Error("Failed to load ownerships");
+        const [ownershipsRes, membersRes, unitsRes] = await Promise.all([
+          fetch("/api/ownerships"),
+          fetch("/api/members"),
+          fetch("/api/units"),
+        ]);
+        if (ownershipsRes.ok) {
+          const data = (await ownershipsRes.json()) as Ownership[];
+          setRows(data);
+          setFiltered(data);
         }
-        const data = (await res.json()) as Ownership[];
-        setRows(data);
+        if (membersRes.ok) setMembers(await membersRes.json());
+        if (unitsRes.ok) setUnits(await unitsRes.json());
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -55,50 +107,89 @@ export function OwnershipsClient() {
     load();
   }, []);
 
+  useEffect(() => {
+    let result = rows;
+
+    if (activeFilter === "ACTIVE") {
+      result = result.filter((r) => !r.to_date);
+    } else if (activeFilter === "PAST") {
+      result = result.filter((r) => !!r.to_date);
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (r) =>
+          r.unit_number.toLowerCase().includes(q) ||
+          r.owner_name.toLowerCase().includes(q),
+      );
+    }
+
+    setFiltered(result);
+  }, [search, activeFilter, rows]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
+    setFormError(null);
+    setFormSuccess(false);
 
-    if (!unitId || !ownerMemberId || !fromDate) {
-      setError("Unit ID, owner member ID, and from date are required");
+    if (!unitId) {
+      setFormError("Please select a unit.");
+      return;
+    }
+    if (!ownerMemberId) {
+      setFormError("Please select an owner member.");
+      return;
+    }
+    if (!fromDate) {
+      setFormError("From date is required.");
       return;
     }
 
-    const res = await fetch("/api/ownerships", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        unitId: Number(unitId),
-        ownerMemberId: Number(ownerMemberId),
-        fromDate,
-        toDate: toDate || null,
-        purchasePrice: purchasePrice ? Number(purchasePrice) : null,
-        salePrice: salePrice ? Number(salePrice) : null,
-      }),
-    });
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/ownerships", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          unitId: Number(unitId),
+          ownerMemberId: Number(ownerMemberId),
+          fromDate,
+          toDate: toDate || null,
+          purchasePrice: purchasePrice ? Number(purchasePrice) : null,
+          salePrice: salePrice ? Number(salePrice) : null,
+        }),
+      });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      setError(body?.error ?? "Failed to add ownership record");
-      return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setFormError(body?.error ?? "Failed to add ownership record.");
+        return;
+      }
+
+      const refreshed = await fetch("/api/ownerships");
+      if (refreshed.ok) {
+        const data = (await refreshed.json()) as Ownership[];
+        setRows(data);
+        setFiltered(data);
+      }
+
+      setUnitId(undefined);
+      setOwnerMemberId(undefined);
+      setFromDate("");
+      setToDate("");
+      setPurchasePrice("");
+      setSalePrice("");
+      setFormSuccess(true);
+      setTimeout(() => setFormSuccess(false), 3000);
+    } finally {
+      setSubmitting(false);
     }
-
-    const refreshed = await fetch("/api/ownerships");
-    if (refreshed.ok) {
-      const data = (await refreshed.json()) as Ownership[];
-      setRows(data);
-    }
-
-    setUnitId("");
-    setOwnerMemberId("");
-    setFromDate("");
-    setToDate("");
-    setPurchasePrice("");
-    setSalePrice("");
   };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
+      {/* ADD OWNERSHIP FORM */}
       <Card>
         <CardHeader>
           <CardTitle>Add Ownership Record</CardTitle>
@@ -108,28 +199,50 @@ export function OwnershipsClient() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="unitId">Unit ID</Label>
-                <Input
-                  id="unitId"
-                  value={unitId}
-                  onChange={(e) => setUnitId(e.target.value)}
-                  required
-                  placeholder="numeric ID from units"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ownerMemberId">Owner member ID</Label>
-                <Input
-                  id="ownerMemberId"
-                  value={ownerMemberId}
-                  onChange={(e) => setOwnerMemberId(e.target.value)}
-                  required
-                  placeholder="numeric ID from members"
-                />
-              </div>
+            {/* UNIT DROPDOWN */}
+            <div className="space-y-2">
+              <Label>Unit</Label>
+              <Select value={unitId} onValueChange={setUnitId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.unit_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {units.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No units found. Add units first.
+                </p>
+              )}
             </div>
+
+            {/* OWNER MEMBER DROPDOWN */}
+            <div className="space-y-2">
+              <Label>Owner member</Label>
+              <Select value={ownerMemberId} onValueChange={setOwnerMemberId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.first_name} {m.last_name ?? ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {members.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No members found. Add members first.
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fromDate">From date</Label>
@@ -151,77 +264,160 @@ export function OwnershipsClient() {
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="purchasePrice">Purchase price</Label>
+                <Label htmlFor="purchasePrice">Purchase price (Rs)</Label>
                 <Input
                   id="purchasePrice"
                   type="number"
                   value={purchasePrice}
                   onChange={(e) => setPurchasePrice(e.target.value)}
+                  placeholder="Optional"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="salePrice">Sale price</Label>
+                <Label htmlFor="salePrice">Sale price (Rs)</Label>
                 <Input
                   id="salePrice"
                   type="number"
                   value={salePrice}
                   onChange={(e) => setSalePrice(e.target.value)}
+                  placeholder="Optional"
                 />
               </div>
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button type="submit">Add ownership</Button>
+
+            {/* ERROR */}
+            {formError && (
+              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                <span>⚠</span>
+                <span>{formError}</span>
+              </div>
+            )}
+
+            {/* SUCCESS */}
+            {formSuccess && (
+              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
+                <span>✓</span>
+                <span>Ownership record added successfully.</span>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Adding...
+                </span>
+              ) : (
+                "Add ownership"
+              )}
+            </Button>
           </form>
         </CardContent>
       </Card>
 
+      {/* OWNERSHIP TABLE */}
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Ownership History</CardTitle>
           <CardDescription>
-            Historical ownership records for units.
+            Historical and current ownership records for all units.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* FILTERS */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Input
+              placeholder="Search by unit or owner..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <Select value={activeFilter} onValueChange={setActiveFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="PAST">Past</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground self-center">
+              {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+
+          {/* TABLE */}
           {loading ? (
             <p className="text-sm text-muted-foreground">
               Loading ownership history...
             </p>
-          ) : rows.length === 0 ? (
+          ) : error ? (
+            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              <span>⚠</span>
+              <span>{error}</span>
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No ownership records found yet.
+              No ownership records found.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Unit</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>From</TableHead>
-                  <TableHead>To</TableHead>
-                  <TableHead>Purchase</TableHead>
-                  <TableHead>Sale</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.unit_number}</TableCell>
-                    <TableCell>{row.owner_name}</TableCell>
-                    <TableCell>{row.from_date}</TableCell>
-                    <TableCell>{row.to_date ?? "-"}</TableCell>
-                    <TableCell>{row.purchase_price ?? "-"}</TableCell>
-                    <TableCell>{row.sale_price ?? "-"}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Unit</TableHead>
+                    <TableHead>Owner</TableHead>
+                    <TableHead className="hidden sm:table-cell">From</TableHead>
+                    <TableHead className="hidden sm:table-cell">To</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Purchase
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">Sale</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">
+                        {row.unit_number}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {row.owner_name}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                        {formatDate(row.from_date)}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                        {formatDate(row.to_date)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={!row.to_date ? "default" : "secondary"}>
+                          {!row.to_date ? "Active" : "Past"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {formatAmount(row.purchase_price)}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {formatAmount(row.sale_price)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

@@ -1,37 +1,40 @@
 "use client";
 
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "./ui/chart";
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "./ui/chart";
 
-const chartData = [
-  { month: "January", desktop: 186, mobile: 80 },
-  { month: "February", desktop: 305, mobile: 200 },
-  { month: "March", desktop: 237, mobile: 120 },
-  { month: "April", desktop: 73, mobile: 190 },
-  { month: "May", desktop: 209, mobile: 130 },
-  { month: "June", desktop: 214, mobile: 140 },
-];
+type MonthlyPayment = {
+  month: string;
+  total: number;
+};
+
 const chartConfig = {
-  desktop: {
-    label: "Desktop",
+  total: {
+    label: "Payments",
     color: "var(--chart-1)",
-  },
-  mobile: {
-    label: "Mobile",
-    color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
 
-const AppLineChart = () => {
+const AppLineChart = ({ data }: { data: MonthlyPayment[] }) => {
+  if (!data || data.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-8 text-center">
+        No payment history yet.
+      </p>
+    );
+  }
+
   return (
-    <ChartContainer config={chartConfig} className="mt-6">
+    <ChartContainer config={chartConfig} className="mt-4 min-h-50 w-full">
       <LineChart
         accessibilityLayer
-        data={chartData}
-        margin={{
-          left: 12,
-          right: 12,
-        }}
+        data={data}
+        margin={{ left: 12, right: 12 }}
       >
         <CartesianGrid vertical={false} />
         <XAxis
@@ -39,25 +42,25 @@ const AppLineChart = () => {
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickFormatter={(value) => value.slice(0, 3)}
         />
         <YAxis
           tickLine={false}
           axisLine={false}
           tickMargin={8}
+          tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
         />
-        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-        <Line
-          dataKey="desktop"
-          type="monotone"
-          stroke="var(--color-desktop)"
-          strokeWidth={2}
-          dot={false}
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              formatter={(value: any) => `Rs ${Number(value).toLocaleString()}`}
+            />
+          }
         />
         <Line
-          dataKey="mobile"
+          dataKey="total"
           type="monotone"
-          stroke="var(--color-mobile)"
+          stroke="var(--color-total)"
           strokeWidth={2}
           dot={false}
         />

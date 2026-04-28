@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -26,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Bill = {
   id: number;
@@ -69,7 +70,6 @@ export function BillingClient() {
   const [filtered, setFiltered] = useState<Bill[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -79,30 +79,30 @@ export function BillingClient() {
   const [dueDate, setDueDate] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [billsRes, unitsRes] = await Promise.all([
-          fetch("/api/billing"),
-          fetch("/api/units"),
-        ]);
-        if (billsRes.ok) {
-          const data = (await billsRes.json()) as Bill[];
-          setBills(data);
-          setFiltered(data);
-        }
-        if (unitsRes.ok) setUnits(await unitsRes.json());
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [billsRes, unitsRes] = await Promise.all([
+        fetch("/api/billing"),
+        fetch("/api/units"),
+      ]);
+      if (billsRes.ok) {
+        const data = (await billsRes.json()) as Bill[];
+        setBills(data);
+        setFiltered(data);
+      }
+      if (unitsRes.ok) setUnits(await unitsRes.json());
+    } catch {
+      toast.error("Failed to load billing data");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     let result = bills;
@@ -118,14 +118,10 @@ export function BillingClient() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!unitId) {
-      setFormError("Please select a unit.");
+      toast.error("Please select a unit.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/billing", {
@@ -142,24 +138,22 @@ export function BillingClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to create bill.");
+        toast.error(body?.error ?? "Failed to create bill.");
         return;
       }
 
+      toast.success("Bill created successfully.");
       const refreshed = await fetch("/api/billing");
       if (refreshed.ok) {
         const data = (await refreshed.json()) as Bill[];
         setBills(data);
         setFiltered(data);
       }
-
       setUnitId(undefined);
       setBillingPeriodStart("");
       setBillingPeriodEnd("");
       setDueDate("");
       setTotalAmount("");
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -177,7 +171,6 @@ export function BillingClient() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* UNIT DROPDOWN */}
             <div className="space-y-2">
               <Label>Unit</Label>
               <Select value={unitId} onValueChange={setUnitId}>
@@ -246,22 +239,6 @@ export function BillingClient() {
               </div>
             </div>
 
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Bill created successfully.</span>
-              </div>
-            )}
-
             <Button
               type="submit"
               disabled={submitting}
@@ -289,7 +266,6 @@ export function BillingClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by unit number..."
@@ -315,16 +291,28 @@ export function BillingClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading bills...</p>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-40 hidden sm:block" />
+                  <Skeleton className="h-4 w-24 hidden md:block" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No bills found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                🧾
+              </div>
+              <p className="font-medium text-sm">No bills found</p>
+              <p className="text-xs text-muted-foreground">
+                Create your first bill using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>

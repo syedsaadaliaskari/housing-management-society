@@ -38,6 +38,21 @@ type UserDetail = {
   ownership_status: string | null;
 };
 
+type Payment = {
+  id: number;
+  amount: string;
+  method: string;
+  status: string;
+  payment_date: string;
+  reference_number: string | null;
+  unit_number: string;
+};
+
+type MonthlyPayment = {
+  month: string;
+  total: number;
+};
+
 async function getUser(id: string): Promise<UserDetail | null> {
   const rows = (await (sql as any)`
     SELECT
@@ -57,8 +72,18 @@ async function getUser(id: string): Promise<UserDetail | null> {
     WHERE u.id = ${Number(id)}
     LIMIT 1
   `) as UserDetail[];
-
   return rows[0] ?? null;
+}
+
+async function getUserPayments(
+  userId: number,
+): Promise<{ payments: Payment[]; monthly: MonthlyPayment[] }> {
+  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  const res = await fetch(`${baseUrl}/api/users/${userId}/payments`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return { payments: [], monthly: [] };
+  return res.json();
 }
 
 const SingleUserPage = async ({ params }: { params: { username: string } }) => {
@@ -70,6 +95,8 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
   const user = await getUser(params.username);
   if (!user) notFound();
 
+  const { payments, monthly } = await getUserPayments(user.id);
+
   const fullName = user.first_name
     ? `${user.first_name} ${user.last_name ?? ""}`.trim()
     : user.email;
@@ -78,7 +105,6 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
     ? `${user.first_name[0]}${user.last_name?.[0] ?? ""}`.toUpperCase()
     : user.email[0].toUpperCase();
 
-  // Profile completion
   const fields = [
     user.first_name,
     user.last_name,
@@ -98,7 +124,7 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
   });
 
   return (
-    <div className="">
+    <div className="p-4 md:p-6 space-y-6">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -115,24 +141,23 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* CONTAINER */}
-      <div className="mt-4 flex flex-col xl:flex-row gap-8">
-        {/* LEFT */}
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* LEFT COLUMN */}
         <div className="w-full xl:w-1/3 space-y-6">
-          {/* USER BADGES CONTAINER */}
+          {/* BADGES */}
           <div className="bg-primary-foreground p-4 rounded-lg">
-            <h1 className="text-xl font-semibold">User Badges</h1>
-            <div className="flex gap-4 mt-4">
+            <h2 className="text-lg font-semibold mb-4">User Badges</h2>
+            <div className="flex flex-wrap gap-3">
               {user.is_active && (
                 <HoverCard>
                   <HoverCardTrigger>
                     <BadgeCheck
                       size={36}
-                      className="rounded-full bg-blue-500/30 border border-blue-500/50 p-2"
+                      className="rounded-full bg-blue-500/30 border border-blue-500/50 p-2 cursor-pointer"
                     />
                   </HoverCardTrigger>
                   <HoverCardContent>
-                    <h1 className="font-bold mb-2">Verified User</h1>
+                    <h3 className="font-bold mb-1">Verified User</h3>
                     <p className="text-sm text-muted-foreground">
                       This user account is active and verified.
                     </p>
@@ -144,14 +169,13 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
                   <HoverCardTrigger>
                     <Shield
                       size={36}
-                      className="rounded-full bg-green-800/30 border border-green-800/50 p-2"
+                      className="rounded-full bg-green-800/30 border border-green-800/50 p-2 cursor-pointer"
                     />
                   </HoverCardTrigger>
                   <HoverCardContent>
-                    <h1 className="font-bold mb-2">Admin</h1>
+                    <h3 className="font-bold mb-1">Admin</h3>
                     <p className="text-sm text-muted-foreground">
-                      Admin users have access to all features and can manage
-                      users.
+                      Full access to all features.
                     </p>
                   </HoverCardContent>
                 </HoverCard>
@@ -161,13 +185,13 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
                   <HoverCardTrigger>
                     <Candy
                       size={36}
-                      className="rounded-full bg-yellow-500/30 border border-yellow-500/50 p-2"
+                      className="rounded-full bg-yellow-500/30 border border-yellow-500/50 p-2 cursor-pointer"
                     />
                   </HoverCardTrigger>
                   <HoverCardContent>
-                    <h1 className="font-bold mb-2">Member Linked</h1>
+                    <h3 className="font-bold mb-1">Member Linked</h3>
                     <p className="text-sm text-muted-foreground">
-                      This user is linked to a society member record.
+                      Linked to a society member record.
                     </p>
                   </HoverCardContent>
                 </HoverCard>
@@ -177,13 +201,13 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
                   <HoverCardTrigger>
                     <Citrus
                       size={36}
-                      className="rounded-full bg-orange-500/30 border border-orange-500/50 p-2"
+                      className="rounded-full bg-orange-500/30 border border-orange-500/50 p-2 cursor-pointer"
                     />
                   </HoverCardTrigger>
                   <HoverCardContent>
-                    <h1 className="font-bold mb-2">{user.ownership_status}</h1>
+                    <h3 className="font-bold mb-1">{user.ownership_status}</h3>
                     <p className="text-sm text-muted-foreground">
-                      This user has an ownership status in the society.
+                      Ownership status in the society.
                     </p>
                   </HoverCardContent>
                 </HoverCard>
@@ -191,76 +215,77 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
             </div>
           </div>
 
-          {/* INFORMATION CONTAINER */}
+          {/* USER INFO */}
           <div className="bg-primary-foreground p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <h1 className="text-xl font-semibold">User Information</h1>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">User Information</h2>
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button>Edit User</Button>
+                  <Button size="sm">Edit User</Button>
                 </SheetTrigger>
-                <EditUser />
+                <EditUser
+                  userId={user.id}
+                  email={user.email}
+                  role={user.role}
+                  isActive={user.is_active}
+                  firstName={user.first_name}
+                  lastName={user.last_name}
+                  phone={user.phone_primary}
+                />
               </Sheet>
             </div>
-            <div className="space-y-4 mt-4">
-              <div className="flex flex-col gap-2 mb-8">
-                <p className="text-sm text-muted-foreground">
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">
                   Profile completion
                 </p>
                 <Progress value={completionPct} />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">Full Name:</span>
+              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-3 text-sm">
+                <span className="font-semibold">Full Name</span>
                 <span>{fullName}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">Email:</span>
-                <span>{user.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">Phone:</span>
+                <span className="font-semibold">Email</span>
+                <span className="break-all">{user.email}</span>
+                <span className="font-semibold">Phone</span>
                 <span>{user.phone_primary ?? "—"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">Ownership:</span>
+                <span className="font-semibold">Ownership</span>
                 <span>{user.ownership_status ?? "—"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">Role:</span>
-                <Badge>{user.role}</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">Status:</span>
-                <Badge variant={user.is_active ? "default" : "secondary"}>
+                <span className="font-semibold">Role</span>
+                <Badge className="w-fit">{user.role}</Badge>
+                <span className="font-semibold">Status</span>
+                <Badge
+                  variant={user.is_active ? "default" : "secondary"}
+                  className="w-fit"
+                >
                   {user.is_active ? "Active" : "Inactive"}
                 </Badge>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Joined on {joinedDate}
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground mt-4">
-              Joined on {joinedDate}
-            </p>
           </div>
 
-          {/* CARD LIST CONTAINER */}
+          {/* RECENT TRANSACTIONS */}
           <div className="bg-primary-foreground p-4 rounded-lg">
-            <CardList title="Recent Transactions" />
+            <CardList title="Recent Transactions" payments={payments} />
           </div>
         </div>
 
-        {/* RIGHT */}
+        {/* RIGHT COLUMN */}
         <div className="w-full xl:w-2/3 space-y-6">
-          {/* USER CARD CONTAINER */}
-          <div className="bg-primary-foreground p-4 rounded-lg space-y-2">
-            <div className="flex items-center gap-2">
-              <Avatar className="size-12">
-                <AvatarFallback>{initials}</AvatarFallback>
+          {/* USER CARD */}
+          <div className="bg-primary-foreground p-4 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Avatar className="size-14">
+                <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
               <div>
                 <h1 className="text-xl font-semibold">{fullName}</h1>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
             </div>
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 mt-3">
               <Badge variant="outline">{user.role}</Badge>
               {user.ownership_status && (
                 <Badge variant="outline">{user.ownership_status}</Badge>
@@ -271,10 +296,44 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
             </div>
           </div>
 
-          {/* CHART CONTAINER */}
+          {/* PAYMENT HISTORY CHART */}
           <div className="bg-primary-foreground p-4 rounded-lg">
-            <h1 className="text-xl font-semibold">User Activity</h1>
-            <AppLineChart />
+            <h2 className="text-lg font-semibold">Payment History</h2>
+            <p className="text-sm text-muted-foreground mb-2">
+              Monthly payments over the last 6 months.
+            </p>
+            <AppLineChart data={monthly} />
+          </div>
+
+          {/* STATS */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="bg-primary-foreground p-4 rounded-lg">
+              <p className="text-xs text-muted-foreground mb-1">
+                Total Payments
+              </p>
+              <p className="text-2xl font-semibold">{payments.length}</p>
+            </div>
+            <div className="bg-primary-foreground p-4 rounded-lg">
+              <p className="text-xs text-muted-foreground mb-1">Total Paid</p>
+              <p className="text-2xl font-semibold">
+                Rs{" "}
+                {payments
+                  .filter((p) => p.status === "SUCCESS")
+                  .reduce((acc, p) => acc + Number(p.amount), 0)
+                  .toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-primary-foreground p-4 rounded-lg col-span-2 sm:col-span-1">
+              <p className="text-xs text-muted-foreground mb-1">Last Payment</p>
+              <p className="text-2xl font-semibold">
+                {payments[0]
+                  ? new Date(payments[0].payment_date).toLocaleDateString(
+                      "en-PK",
+                      { day: "numeric", month: "short" },
+                    )
+                  : "—"}
+              </p>
+            </div>
           </div>
         </div>
       </div>

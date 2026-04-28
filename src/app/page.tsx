@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 import AppAreaChart from "@/components/AppAreaChart";
@@ -40,6 +39,12 @@ type RecentMember = {
   created_at: string;
 };
 
+type ChartData = {
+  monthlyPayments: { month: string; collected: number; outstanding: number }[];
+  expensesByCategory: { category: string; total: number }[];
+  ownershipBreakdown: { ownership_status: string; count: number }[];
+};
+
 const Homepage = async () => {
   const session = await auth();
 
@@ -47,8 +52,11 @@ const Homepage = async () => {
     redirect("/login");
   }
 
-  const summary = await loadAdminSummary();
-  const recentMembers = await loadRecentMembers();
+  const [summary, recentMembers, chartData] = await Promise.all([
+    loadAdminSummary(),
+    loadRecentMembers(),
+    loadChartData(),
+  ]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -62,7 +70,7 @@ const Homepage = async () => {
         </p>
       </div>
 
-      {/* STATS CARDS — 2 cols on mobile, 3 on md, 5 on xl */}
+      {/* STATS CARDS */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardHeader className="pb-1">
@@ -133,32 +141,34 @@ const Homepage = async () => {
         </Card>
       </div>
 
-      {/* CHARTS ROW — stacked on mobile, side by side on lg */}
+      {/* CHARTS ROW */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Payments Over Time</CardTitle>
             <CardDescription>
-              Monthly payment collections trend.
+              Monthly collected vs outstanding — last 6 months.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AppAreaChart />
+            <AppAreaChart data={chartData.monthlyPayments} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Expenses by Category</CardTitle>
-            <CardDescription>Breakdown of society expenses.</CardDescription>
+            <CardDescription>
+              Society expense breakdown — last 6 months.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <AppBarChart />
+            <AppBarChart data={chartData.expensesByCategory} />
           </CardContent>
         </Card>
       </div>
 
-      {/* RECENT MEMBERS + PIE CHART — stacked on mobile, side by side on lg */}
+      {/* RECENT MEMBERS + PIE CHART */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
         <Card>
           <CardHeader>
@@ -173,7 +183,6 @@ const Homepage = async () => {
                 No members found yet.
               </p>
             ) : (
-              /* Scrollable on small screens */
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -205,10 +214,10 @@ const Homepage = async () => {
                         <TableCell>
                           <Badge variant="outline">{m.ownership_status}</Badge>
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell text-xs">
+                        <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
                           {m.email}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs">
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                           {m.phone_primary}
                         </TableCell>
                       </TableRow>
@@ -220,7 +229,6 @@ const Homepage = async () => {
           </CardContent>
         </Card>
 
-        {/* PIE CHART */}
         <Card>
           <CardHeader>
             <CardTitle>Ownership Breakdown</CardTitle>
@@ -229,7 +237,7 @@ const Homepage = async () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AppPieChart />
+            <AppPieChart data={chartData.ownershipBreakdown} />
           </CardContent>
         </Card>
       </div>
@@ -240,32 +248,27 @@ const Homepage = async () => {
 async function loadAdminSummary(): Promise<AdminSummary> {
   const [memberRow] = (await (sql as any)`
     SELECT COUNT(*)::int AS total_members
-    FROM members
-    WHERE is_active = TRUE
+    FROM members WHERE is_active = TRUE
   `) as { total_members: number }[];
 
   const [unitRow] = (await (sql as any)`
     SELECT COUNT(*)::int AS total_units
-    FROM units
-    WHERE is_active = TRUE
+    FROM units WHERE is_active = TRUE
   `) as { total_units: number }[];
 
   const [complaintRow] = (await (sql as any)`
     SELECT COUNT(*)::int AS open_complaints
-    FROM complaints
-    WHERE status IN ('OPEN', 'IN_PROGRESS')
+    FROM complaints WHERE status IN ('OPEN', 'IN_PROGRESS')
   `) as { open_complaints: number }[];
 
   const [alertRow] = (await (sql as any)`
     SELECT COUNT(*)::int AS active_alerts
-    FROM emergency_alerts
-    WHERE status IN ('ACTIVE', 'ACKNOWLEDGED')
+    FROM emergency_alerts WHERE status IN ('ACTIVE', 'ACKNOWLEDGED')
   `) as { active_alerts: number }[];
 
   const [outstandingRow] = (await (sql as any)`
     SELECT COALESCE(SUM(balance_amount), 0)::text AS outstanding_dues
-    FROM bills
-    WHERE status IN ('PENDING', 'PARTIALLY_PAID', 'OVERDUE')
+    FROM bills WHERE status IN ('PENDING', 'PARTIALLY_PAID', 'OVERDUE')
   `) as { outstanding_dues: string }[];
 
   return {
@@ -278,22 +281,32 @@ async function loadAdminSummary(): Promise<AdminSummary> {
 }
 
 async function loadRecentMembers(): Promise<RecentMember[]> {
-  const rows = (await (sql as any)`
+  return (await (sql as any)`
     SELECT
-      id,
-      first_name,
-      last_name,
-      email,
-      phone_primary,
-      ownership_status,
-      created_at
+      id, first_name, last_name, email,
+      phone_primary, ownership_status, created_at
     FROM members
     WHERE is_active = TRUE
     ORDER BY created_at DESC
     LIMIT 8
   `) as RecentMember[];
+}
 
-  return rows;
+async function loadChartData(): Promise<ChartData> {
+  const res = await fetch(
+    `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/admin/charts`,
+    { cache: "no-store" },
+  );
+
+  if (!res.ok) {
+    return {
+      monthlyPayments: [],
+      expensesByCategory: [],
+      ownershipBreakdown: [],
+    };
+  }
+
+  return res.json();
 }
 
 export default Homepage;

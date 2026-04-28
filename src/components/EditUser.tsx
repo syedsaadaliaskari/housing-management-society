@@ -1,24 +1,16 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "./ui/form";
-import { Input } from "./ui/input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -26,130 +18,127 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "./ui/button";
 
-const formSchema = z.object({
-  username: z
-    .string()
-    .min(2, { message: "Username must be at least 2 characters!" })
-    .max(50),
-  email: z.string().email({ message: "Invalid email address!" }),
-  phone: z.string().min(10).max(15),
-  location: z.string().min(2),
-  role: z.enum(["admin", "user"]),
-});
+type EditUserProps = {
+  userId: number;
+  email: string;
+  role: string;
+  isActive: boolean;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  onUpdated?: (updated: { role: string; is_active: boolean }) => void;
+};
 
-const EditUser = () => {
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      username: "john.doe",
-      email: "john.doe@gmail.com",
-      phone: "+1 234 5678",
-      location: "New York, NY",
-      role: "admin",
-    },
-  });
+const EditUser = ({
+  userId,
+  email,
+  role,
+  isActive,
+  firstName,
+  lastName,
+  phone,
+  onUpdated,
+}: EditUserProps) => {
+  const [selectedRole, setSelectedRole] = useState(role);
+  const [selectedStatus, setSelectedStatus] = useState(
+    isActive ? "ACTIVE" : "INACTIVE",
+  );
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: userId,
+          role: selectedRole,
+          is_active: selectedStatus === "ACTIVE",
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Failed to update user");
+        return;
+      }
+
+      toast.success("User updated successfully");
+      onUpdated?.({
+        role: selectedRole,
+        is_active: selectedStatus === "ACTIVE",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <SheetContent>
       <SheetHeader>
-        <SheetTitle className="mb-4">Edit User</SheetTitle>
-        <SheetDescription asChild>
-          <Form {...form}>
-            <form className="space-y-8">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      This is your public username.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Only admin can see your email.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Only admin can see your phone number.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      This is the public location.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Role</FormLabel>
-                    <FormControl>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="user">User</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription>
-                      Only verified users can be admin.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit">Submit</Button>
-            </form>
-          </Form>
+        <SheetTitle>Edit User</SheetTitle>
+        <SheetDescription>
+          Update role and status for this user.
         </SheetDescription>
       </SheetHeader>
+
+      <form onSubmit={handleSubmit} className="space-y-6 mt-6 px-1">
+        {/* READ ONLY INFO */}
+        <div className="space-y-2">
+          <Label>Full Name</Label>
+          <Input
+            value={firstName ? `${firstName} ${lastName ?? ""}`.trim() : "—"}
+            disabled
+            className="bg-muted"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input value={email} disabled className="bg-muted" />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Phone</Label>
+          <Input value={phone ?? "—"} disabled className="bg-muted" />
+        </div>
+
+        {/* EDITABLE FIELDS */}
+        <div className="space-y-2">
+          <Label>Role</Label>
+          <Select value={selectedRole} onValueChange={setSelectedRole}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+              <SelectItem value="RESIDENT">Resident</SelectItem>
+              <SelectItem value="STAFF">Staff</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Status</Label>
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ACTIVE">Active</SelectItem>
+              <SelectItem value="INACTIVE">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={submitting}>
+          {submitting ? "Saving..." : "Save changes"}
+        </Button>
+      </form>
     </SheetContent>
   );
 };

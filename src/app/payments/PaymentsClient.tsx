@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -26,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Payment = {
   id: number;
@@ -78,7 +79,6 @@ export function PaymentsClient() {
   const [bills, setBills] = useState<BillListItem[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -89,32 +89,32 @@ export function PaymentsClient() {
   const [status, setStatus] = useState<string>("SUCCESS");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [paymentsRes, billsRes, membersRes] = await Promise.all([
-          fetch("/api/payments"),
-          fetch("/api/bills-list"),
-          fetch("/api/members"),
-        ]);
-        if (paymentsRes.ok) {
-          const data = (await paymentsRes.json()) as Payment[];
-          setPayments(data);
-          setFiltered(data);
-        }
-        if (billsRes.ok) setBills(await billsRes.json());
-        if (membersRes.ok) setMembers(await membersRes.json());
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [paymentsRes, billsRes, membersRes] = await Promise.all([
+        fetch("/api/payments"),
+        fetch("/api/bills-list"),
+        fetch("/api/members"),
+      ]);
+      if (paymentsRes.ok) {
+        const data = (await paymentsRes.json()) as Payment[];
+        setPayments(data);
+        setFiltered(data);
+      }
+      if (billsRes.ok) setBills(await billsRes.json());
+      if (membersRes.ok) setMembers(await membersRes.json());
+    } catch {
+      toast.error("Failed to load payments data");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     let result = payments;
@@ -133,7 +133,6 @@ export function PaymentsClient() {
     setFiltered(result);
   }, [search, statusFilter, payments]);
 
-  // Auto fill amount when bill is selected
   const handleBillSelect = (value: string) => {
     setBillId(value);
     const bill = bills.find((b) => String(b.id) === value);
@@ -142,18 +141,14 @@ export function PaymentsClient() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!billId) {
-      setFormError("Please select a bill.");
+      toast.error("Please select a bill.");
       return;
     }
     if (!method) {
-      setFormError("Please select a payment method.");
+      toast.error("Please select a payment method.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/payments", {
@@ -171,20 +166,22 @@ export function PaymentsClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to record payment.");
+        toast.error(body?.error ?? "Failed to record payment.");
         return;
       }
 
-      const refreshed = await fetch("/api/payments");
-      if (refreshed.ok) {
-        const data = (await refreshed.json()) as Payment[];
+      toast.success("Payment recorded successfully.");
+
+      const [refreshedPayments, refreshedBills] = await Promise.all([
+        fetch("/api/payments"),
+        fetch("/api/bills-list"),
+      ]);
+      if (refreshedPayments.ok) {
+        const data = (await refreshedPayments.json()) as Payment[];
         setPayments(data);
         setFiltered(data);
       }
-
-      // Refresh bills list too
-      const billsRefreshed = await fetch("/api/bills-list");
-      if (billsRefreshed.ok) setBills(await billsRefreshed.json());
+      if (refreshedBills.ok) setBills(await refreshedBills.json());
 
       setBillId(undefined);
       setMemberId("NONE");
@@ -192,8 +189,6 @@ export function PaymentsClient() {
       setMethod(undefined);
       setStatus("SUCCESS");
       setReferenceNumber("");
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -211,7 +206,6 @@ export function PaymentsClient() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* BILL DROPDOWN */}
             <div className="space-y-2">
               <Label>Bill</Label>
               <Select value={billId} onValueChange={handleBillSelect}>
@@ -235,7 +229,6 @@ export function PaymentsClient() {
               )}
             </div>
 
-            {/* MEMBER DROPDOWN */}
             <div className="space-y-2">
               <Label>Member (optional)</Label>
               <Select value={memberId} onValueChange={setMemberId}>
@@ -254,7 +247,6 @@ export function PaymentsClient() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* AMOUNT — auto filled from bill */}
               <div className="space-y-2">
                 <Label htmlFor="amount">Amount (Rs)</Label>
                 <Input
@@ -266,8 +258,6 @@ export function PaymentsClient() {
                   placeholder="e.g. 5000"
                 />
               </div>
-
-              {/* METHOD */}
               <div className="space-y-2">
                 <Label>Method</Label>
                 <Select value={method} onValueChange={setMethod}>
@@ -286,7 +276,6 @@ export function PaymentsClient() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* STATUS */}
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={status} onValueChange={setStatus}>
@@ -300,8 +289,6 @@ export function PaymentsClient() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* REFERENCE */}
               <div className="space-y-2">
                 <Label htmlFor="referenceNumber">Reference no.</Label>
                 <Input
@@ -312,22 +299,6 @@ export function PaymentsClient() {
                 />
               </div>
             </div>
-
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Payment recorded successfully.</span>
-              </div>
-            )}
 
             <Button
               type="submit"
@@ -356,7 +327,6 @@ export function PaymentsClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by unit, member or ref..."
@@ -380,16 +350,29 @@ export function PaymentsClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading payments...</p>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-32 hidden sm:block" />
+                  <Skeleton className="h-4 w-24 hidden md:block" />
+                  <Skeleton className="h-4 w-16 hidden sm:block" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                💳
+              </div>
+              <p className="font-medium text-sm">No payments found</p>
+              <p className="text-xs text-muted-foreground">
+                Record your first payment using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
