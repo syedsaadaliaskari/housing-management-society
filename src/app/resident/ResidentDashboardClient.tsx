@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -28,6 +35,17 @@ type Summary = {
   lastPaymentAt: string | null;
   openComplaints: number;
   activeAlerts: number;
+};
+
+type ResidentBill = {
+  id: number;
+  unit_number: string;
+  billing_period_start: string;
+  billing_period_end: string;
+  due_date: string;
+  status: string;
+  total_amount: string;
+  balance_amount: string;
 };
 
 type ResidentPayment = {
@@ -79,139 +97,224 @@ type ResidentSos = {
   resolved_at: string | null;
 };
 
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-PK", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatAmount(amount: string) {
+  return `₨ ${Number(amount).toLocaleString()}`;
+}
+
+function statusVariant(status: string) {
+  switch (status) {
+    case "PAID":
+    case "RESOLVED":
+    case "CLOSED":
+    case "SUCCESS":
+      return "default";
+    case "IN_PROGRESS":
+    case "PARTIALLY_PAID":
+    case "ACKNOWLEDGED":
+      return "secondary";
+    case "OVERDUE":
+    case "ACTIVE":
+    case "FAILED":
+      return "destructive";
+    default:
+      return "outline";
+  }
+}
+
+function priorityVariant(priority: string) {
+  switch (priority) {
+    case "URGENT":
+      return "destructive";
+    case "HIGH":
+      return "secondary";
+    default:
+      return "outline";
+  }
+}
+
 export function ResidentDashboardClient() {
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [bills, setBills] = useState<ResidentBill[]>([]);
   const [payments, setPayments] = useState<ResidentPayment[]>([]);
+  const [filteredPayments, setFilteredPayments] = useState<ResidentPayment[]>(
+    [],
+  );
   const [complaints, setComplaints] = useState<ResidentComplaint[]>([]);
   const [polls, setPolls] = useState<ResidentPoll[]>([]);
   const [alerts, setAlerts] = useState<ResidentSos[]>([]);
-
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // complaint form
-  const [complaintSubject, setComplaintSubject] = useState("");
-  const [complaintDescription, setComplaintDescription] = useState("");
-  const [complaintPriority, setComplaintPriority] = useState<string | undefined>(
-    "MEDIUM",
-  );
+  const [subject, setSubject] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState("MEDIUM");
+  const [submittingComplaint, setSubmittingComplaint] = useState(false);
 
-  // SOS form
-  const [sosAlertType, setSosAlertType] = useState<string | undefined>("MEDICAL");
+  // sos form
+  const [alertType, setAlertType] = useState("MEDICAL");
   const [sosMessage, setSosMessage] = useState("");
+  const [submittingSos, setSubmittingSos] = useState(false);
+
+  // pay now
+  const [payingBillId, setPayingBillId] = useState<number | null>(null);
+  const [payMethod, setPayMethod] = useState("CASH");
+
+  // payment filter
+  const [paymentFilter, setPaymentFilter] = useState("ALL");
 
   useEffect(() => {
     const loadAll = async () => {
       try {
-        const [summaryRes, paymentsRes, complaintsRes, pollsRes, alertsRes] =
-          await Promise.all([
-            fetch("/api/resident/summary"),
-            fetch("/api/resident/payments"),
-            fetch("/api/resident/complaints"),
-            fetch("/api/resident/polls"),
-            fetch("/api/resident/sos"),
-          ]);
+        const [
+          summaryRes,
+          billsRes,
+          paymentsRes,
+          complaintsRes,
+          pollsRes,
+          alertsRes,
+        ] = await Promise.all([
+          fetch("/api/resident/summary"),
+          fetch("/api/resident/bills"),
+          fetch("/api/resident/payments"),
+          fetch("/api/resident/complaints"),
+          fetch("/api/resident/polls"),
+          fetch("/api/resident/sos"),
+        ]);
 
-        if (!summaryRes.ok) throw new Error("Failed to load summary");
-        if (!paymentsRes.ok) throw new Error("Failed to load payments");
-        if (!complaintsRes.ok) throw new Error("Failed to load complaints");
-        if (!pollsRes.ok) throw new Error("Failed to load polls");
-        if (!alertsRes.ok) throw new Error("Failed to load alerts");
-
-        const summaryData = (await summaryRes.json()) as Summary;
-        const paymentsData = (await paymentsRes.json()) as ResidentPayment[];
-        const complaintsData = (await complaintsRes.json()) as ResidentComplaint[];
-        const pollsData = (await pollsRes.json()) as ResidentPoll[];
-        const alertsData = (await alertsRes.json()) as ResidentSos[];
-
-        setSummary(summaryData);
-        setPayments(paymentsData);
-        setComplaints(complaintsData);
-        setPolls(pollsData);
-        setAlerts(alertsData);
-      } catch (err) {
-        setError((err as Error).message);
+        if (summaryRes.ok) setSummary(await summaryRes.json());
+        if (billsRes.ok) setBills(await billsRes.json());
+        if (paymentsRes.ok) {
+          const data = await paymentsRes.json();
+          setPayments(data);
+          setFilteredPayments(data);
+        }
+        if (complaintsRes.ok) setComplaints(await complaintsRes.json());
+        if (pollsRes.ok) setPolls(await pollsRes.json());
+        if (alertsRes.ok) setAlerts(await alertsRes.json());
+      } catch {
+        toast.error("Failed to load dashboard data");
       } finally {
         setLoading(false);
       }
     };
-
     loadAll();
   }, []);
 
-  const handleSubmitComplaint = async (event: FormEvent) => {
-    event.preventDefault();
-    setError(null);
-
-    if (!complaintSubject || !complaintDescription || !complaintPriority) {
-      setError("Subject, description, and priority are required");
-      return;
+  useEffect(() => {
+    if (paymentFilter === "ALL") {
+      setFilteredPayments(payments);
+    } else {
+      setFilteredPayments(payments.filter((p) => p.status === paymentFilter));
     }
+  }, [paymentFilter, payments]);
 
-    const res = await fetch("/api/resident/complaints", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subject: complaintSubject,
-        description: complaintDescription,
-        priority: complaintPriority,
-      }),
-    });
+  const handlePayNow = async (bill: ResidentBill) => {
+    setPayingBillId(bill.id);
+    try {
+      const res = await fetch("/api/resident/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          billId: bill.id,
+          amount: Number(bill.balance_amount),
+          method: payMethod,
+        }),
+      });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      setError(body?.error ?? "Failed to submit complaint");
-      return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Payment failed");
+        return;
+      }
+
+      const data = await res.json();
+      toast.success(`Payment successful! Ref: ${data.reference_number}`);
+
+      const [summaryRes, billsRes, paymentsRes] = await Promise.all([
+        fetch("/api/resident/summary"),
+        fetch("/api/resident/bills"),
+        fetch("/api/resident/payments"),
+      ]);
+      if (summaryRes.ok) setSummary(await summaryRes.json());
+      if (billsRes.ok) setBills(await billsRes.json());
+      if (paymentsRes.ok) {
+        const data = await paymentsRes.json();
+        setPayments(data);
+        setFilteredPayments(data);
+      }
+    } finally {
+      setPayingBillId(null);
     }
-
-    const refreshed = await fetch("/api/resident/complaints");
-    if (refreshed.ok) {
-      const data = (await refreshed.json()) as ResidentComplaint[];
-      setComplaints(data);
-    }
-
-    setComplaintSubject("");
-    setComplaintDescription("");
-    setComplaintPriority("MEDIUM");
   };
 
-  const handleSubmitSos = async (event: FormEvent) => {
-    event.preventDefault();
-    setError(null);
+  const handleSubmitComplaint = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmittingComplaint(true);
+    try {
+      const res = await fetch("/api/resident/complaints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject, description, priority }),
+      });
 
-    if (!sosAlertType) {
-      setError("Alert type is required");
-      return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Failed to submit complaint");
+        return;
+      }
+
+      toast.success("Complaint submitted successfully");
+      setSubject("");
+      setDescription("");
+      setPriority("MEDIUM");
+
+      const refreshed = await fetch("/api/resident/complaints");
+      if (refreshed.ok) setComplaints(await refreshed.json());
+    } finally {
+      setSubmittingComplaint(false);
     }
+  };
 
-    const res = await fetch("/api/resident/sos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        alertType: sosAlertType,
-        message: sosMessage || null,
-      }),
-    });
+  const handleSubmitSos = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmittingSos(true);
+    try {
+      const res = await fetch("/api/resident/sos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertType, message: sosMessage || null }),
+      });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      setError(body?.error ?? "Failed to trigger alert");
-      return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Failed to trigger SOS");
+        return;
+      }
+
+      toast.success("SOS alert triggered. Help is on the way!");
+      setSosMessage("");
+      setAlertType("MEDICAL");
+
+      const refreshed = await fetch("/api/resident/sos");
+      if (refreshed.ok) setAlerts(await refreshed.json());
+
+      const summaryRes = await fetch("/api/resident/summary");
+      if (summaryRes.ok) setSummary(await summaryRes.json());
+    } finally {
+      setSubmittingSos(false);
     }
-
-    const refreshed = await fetch("/api/resident/sos");
-    if (refreshed.ok) {
-      const data = (await refreshed.json()) as ResidentSos[];
-      setAlerts(data);
-    }
-
-    setSosAlertType("MEDICAL");
-    setSosMessage("");
   };
 
   const handleVote = async (pollId: number, optionId: number) => {
-    setError(null);
-
     const res = await fetch("/api/resident/polls", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -220,90 +323,178 @@ export function ResidentDashboardClient() {
 
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      setError(body?.error ?? "Failed to submit vote");
+      toast.error(body?.error ?? "Failed to submit vote");
       return;
     }
 
+    toast.success("Vote submitted!");
     const refreshed = await fetch("/api/resident/polls");
-    if (refreshed.ok) {
-      const data = (await refreshed.json()) as ResidentPoll[];
-      setPolls(data);
-    }
+    if (refreshed.ok) setPolls(await refreshed.json());
   };
 
-  if (loading && !summary) {
+  if (loading) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Loading your dashboard...
-      </p>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader>
+              <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+            </CardHeader>
+            <CardContent>
+              <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {error && <p className="text-sm text-red-500">{error}</p>}
+  const pendingBills = bills.filter((b) =>
+    ["PENDING", "OVERDUE", "PARTIALLY_PAID"].includes(b.status),
+  );
 
+  return (
+    <div className="space-y-6 pb-10">
       {summary && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 xl:grid-cols-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Outstanding dues</CardTitle>
-              <CardDescription>
-                Total unpaid maintenance and utility charges.
-              </CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Outstanding dues
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-semibold">
-                ₹ {Number(summary.outstanding).toLocaleString()}
+                {formatAmount(summary.outstanding)}
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Last payment</CardTitle>
-              <CardDescription>
-                Most recent successful payment date.
-              </CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Last payment
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-semibold">
-                {summary.lastPaymentAt ?? "No payments yet"}
+                {formatDate(summary.lastPaymentAt)}
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Open complaints</CardTitle>
-              <CardDescription>
-                Complaints currently open or in progress.
-              </CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Open complaints
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-semibold">
-                {summary.openComplaints}
-              </p>
+              <p className="text-2xl font-semibold">{summary.openComplaints}</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Active alerts</CardTitle>
-              <CardDescription>
-                Emergency alerts awaiting resolution.
-              </CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Active alerts
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-semibold">
-                {summary.activeAlerts}
-              </p>
+              <p className="text-2xl font-semibold">{summary.activeAlerts}</p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
+      <Card>
+        <CardHeader>
+          <CardTitle>My Bills</CardTitle>
+          <CardDescription>
+            Outstanding maintenance and utility bills.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pendingBills.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No outstanding bills. You are all clear! ✅
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-2">
+                <Label className="text-sm shrink-0">Pay via</Label>
+                <Select value={payMethod} onValueChange={setPayMethod}>
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Cash</SelectItem>
+                    <SelectItem value="CARD">Card</SelectItem>
+                    <SelectItem value="UPI">UPI</SelectItem>
+                    <SelectItem value="NET_BANKING">Net Banking</SelectItem>
+                    <SelectItem value="CHEQUE">Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Unit</TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Period
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Due date
+                      </TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Amount due</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingBills.map((bill) => (
+                      <TableRow key={bill.id}>
+                        <TableCell className="font-medium">
+                          {bill.unit_number}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                          {formatDate(bill.billing_period_start)} —{" "}
+                          {formatDate(bill.billing_period_end)}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs">
+                          {formatDate(bill.due_date)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariant(bill.status)}>
+                            {bill.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {formatAmount(bill.balance_amount)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            disabled={payingBillId === bill.id}
+                            onClick={() => handlePayNow(bill)}
+                          >
+                            {payingBillId === bill.id
+                              ? "Processing..."
+                              : "Pay Now"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Submit Complaint / Request</CardTitle>
+            <CardTitle>Submit complaint</CardTitle>
             <CardDescription>
               Raise an issue related to maintenance, security, or amenities.
             </CardDescription>
@@ -311,32 +502,32 @@ export function ResidentDashboardClient() {
           <CardContent>
             <form onSubmit={handleSubmitComplaint} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="complaintSubject">Subject</Label>
+                <Label htmlFor="subject">Subject</Label>
                 <Input
-                  id="complaintSubject"
-                  value={complaintSubject}
-                  onChange={(e) => setComplaintSubject(e.target.value)}
+                  id="subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
                   required
+                  placeholder="e.g. Water leakage in corridor"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="complaintDescription">Description</Label>
-                <Input
-                  id="complaintDescription"
-                  value={complaintDescription}
-                  onChange={(e) => setComplaintDescription(e.target.value)}
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   required
-                  placeholder="Briefly describe the issue"
+                  placeholder="Briefly describe the issue in detail"
+                  rows={4}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Priority</Label>
-                <Select
-                  value={complaintPriority}
-                  onValueChange={(value) => setComplaintPriority(value)}
-                >
+                <Select value={priority} onValueChange={setPriority}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select priority" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="LOW">Low</SelectItem>
@@ -346,91 +537,91 @@ export function ResidentDashboardClient() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit">Submit complaint</Button>
+              <Button
+                type="submit"
+                className="w-full sm:w-auto"
+                disabled={submittingComplaint}
+              >
+                {submittingComplaint ? "Submitting..." : "Submit complaint"}
+              </Button>
             </form>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card>
           <CardHeader>
-            <CardTitle>My Complaints</CardTitle>
+            <CardTitle>My complaints</CardTitle>
             <CardDescription>
-              Recently submitted complaints and requests.
+              Track the status of complaints you have raised.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {complaints.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                You have not submitted any complaints yet.
+                No complaints submitted yet.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Created</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {complaints.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell>{c.subject}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            c.status === "RESOLVED" || c.status === "CLOSED"
-                              ? "default"
-                              : c.status === "IN_PROGRESS"
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {c.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            c.priority === "URGENT"
-                              ? "destructive"
-                              : c.priority === "HIGH"
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {c.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{c.created_at}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Priority
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Date
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {complaints.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="max-w-35 truncate">
+                          {c.subject}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariant(c.status)}>
+                            {c.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <Badge variant={priorityVariant(c.priority)}>
+                            {c.priority}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {formatDate(c.created_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
-        <Card>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="border-destructive/40">
           <CardHeader>
-            <CardTitle>Trigger SOS Alert</CardTitle>
+            <CardTitle className="text-destructive">
+              Trigger SOS alert
+            </CardTitle>
             <CardDescription>
-              Use for emergencies only. Alerts will be visible to security/admin.
+              Use for emergencies only. Admin and security will be notified
+              immediately.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmitSos} className="space-y-4">
               <div className="space-y-2">
                 <Label>Alert type</Label>
-                <Select
-                  value={sosAlertType}
-                  onValueChange={(value) => setSosAlertType(value)}
-                >
+                <Select value={alertType} onValueChange={setAlertType}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MEDICAL">Medical</SelectItem>
@@ -449,66 +640,75 @@ export function ResidentDashboardClient() {
                   placeholder="Short description of the emergency"
                 />
               </div>
-              <Button type="submit" variant="destructive">
-                Trigger SOS
+              <Button
+                type="submit"
+                variant="destructive"
+                className="w-full sm:w-auto"
+                disabled={submittingSos}
+              >
+                {submittingSos ? "Sending..." : "Trigger SOS"}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card>
           <CardHeader>
-            <CardTitle>My Alerts</CardTitle>
+            <CardTitle>My alerts</CardTitle>
             <CardDescription>
-              Emergency alerts you have raised and their status.
+              Emergency alerts you have raised and their current status.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {alerts.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                You have not raised any emergency alerts.
+                No emergency alerts raised.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Resolved</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {alerts.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell>{a.alert_type}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            a.status === "ACTIVE"
-                              ? "destructive"
-                              : a.status === "ACKNOWLEDGED"
-                              ? "secondary"
-                              : "default"
-                          }
-                        >
-                          {a.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{a.created_at}</TableCell>
-                      <TableCell>{a.resolved_at ?? "-"}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Created
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Resolved
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {alerts.map((a) => (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium">
+                          {a.alert_type}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariant(a.status)}>
+                            {a.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                          {formatDate(a.created_at)}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {formatDate(a.resolved_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card>
         <CardHeader>
-          <CardTitle>Active Polls</CardTitle>
+          <CardTitle>Active polls</CardTitle>
           <CardDescription>
             Cast your vote in ongoing society polls.
           </CardDescription>
@@ -516,121 +716,122 @@ export function ResidentDashboardClient() {
         <CardContent>
           {polls.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              There are no active polls at the moment.
+              No active polls at the moment.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Options</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {polls.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{p.title}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          p.status === "OPEN"
-                            ? "default"
-                            : p.status === "DRAFT"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {p.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {p.options.length === 0
-                        ? "-"
-                        : p.options.map((o) => o.option_text).join(", ")}
-                    </TableCell>
-                    <TableCell>
-                      {p.has_voted || p.status !== "OPEN" ? (
-                        <span className="text-xs text-muted-foreground">
-                          {p.status !== "OPEN"
-                            ? "Poll closed"
-                            : "You have already voted"}
-                        </span>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {p.options.map((o) => (
-                            <Button
-                              key={o.id}
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleVote(p.id, o.id)}
-                            >
-                              {o.option_text}
-                            </Button>
-                          ))}
-                        </div>
+            <div className="space-y-4">
+              {polls.map((p) => (
+                <div key={p.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{p.title}</p>
+                      {p.description && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {p.description}
+                        </p>
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                    <Badge
+                      variant={p.status === "OPEN" ? "default" : "outline"}
+                    >
+                      {p.status}
+                    </Badge>
+                  </div>
+                  {p.has_voted || p.status !== "OPEN" ? (
+                    <p className="text-xs text-muted-foreground">
+                      {p.status !== "OPEN"
+                        ? "This poll is closed."
+                        : "You have already voted in this poll."}
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {p.options.map((o) => (
+                        <Button
+                          key={o.id}
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleVote(p.id, o.id)}
+                        >
+                          {o.option_text}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card>
         <CardHeader>
-          <CardTitle>Recent Payments</CardTitle>
-          <CardDescription>Your latest maintenance and utility payments.</CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle>Recent payments</CardTitle>
+              <CardDescription>
+                Your latest maintenance and utility payments.
+              </CardDescription>
+            </div>
+
+            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All</SelectItem>
+                <SelectItem value="SUCCESS">Success</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          {payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No payments recorded yet.
-            </p>
+          {filteredPayments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No payments found.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Bill</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>#{p.bill_id}</TableCell>
-                    <TableCell>{p.unit_number}</TableCell>
-                    <TableCell>{p.payment_date}</TableCell>
-                    <TableCell>{p.method}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          p.status === "SUCCESS"
-                            ? "default"
-                            : p.status === "PENDING"
-                            ? "secondary"
-                            : "destructive"
-                        }
-                      >
-                        {p.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{p.amount}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Unit</TableHead>
+
+                    <TableHead>Date</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Method
+                    </TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Amount</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredPayments.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>{p.unit_number}</TableCell>
+
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDate(p.payment_date)}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {p.method}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(p.status)}>
+                          {p.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatAmount(p.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

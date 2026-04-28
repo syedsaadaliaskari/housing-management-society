@@ -51,69 +51,118 @@ const Homepage = async () => {
   const recentMembers = await loadRecentMembers();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
+      {/* HEADER */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          Society overview
+          Society Overview
         </h1>
         <p className="text-sm text-muted-foreground">
           High-level snapshot of members, units, complaints, and alerts.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* STATS CARDS — 2 cols on mobile, 3 on md, 5 on xl */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <Card>
-          <CardHeader>
-            <CardTitle>Total members</CardTitle>
-            <CardDescription>Active members in the society.</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription>Total Members</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">
               {summary.totalMembers.toLocaleString()}
             </p>
+            <p className="text-xs text-muted-foreground mt-1">Active members</p>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader>
-            <CardTitle>Total units</CardTitle>
-            <CardDescription>Active residential/commercial units.</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription>Total Units</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">
               {summary.totalUnits.toLocaleString()}
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Residential & commercial
+            </p>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader>
-            <CardTitle>Open complaints</CardTitle>
-            <CardDescription>Across all residents.</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription>Open Complaints</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">
               {summary.openComplaints.toLocaleString()}
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Across all residents
+            </p>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader>
-            <CardTitle>Active alerts</CardTitle>
-            <CardDescription>Emergency alerts needing attention.</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription>Active Alerts</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">
               {summary.activeAlerts.toLocaleString()}
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Needs attention
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-2 md:col-span-1">
+          <CardHeader className="pb-1">
+            <CardDescription>Outstanding Dues</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold">
+              Rs {Number(summary.outstandingDues).toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pending & overdue bills
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)]">
-    
-
-        <Card className="bg-primary-foreground">
+      {/* CHARTS ROW — stacked on mobile, side by side on lg */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
           <CardHeader>
-            <CardTitle>Recent members</CardTitle>
+            <CardTitle>Payments Over Time</CardTitle>
+            <CardDescription>
+              Monthly payment collections trend.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AppAreaChart />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Expenses by Category</CardTitle>
+            <CardDescription>Breakdown of society expenses.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AppBarChart />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* RECENT MEMBERS + PIE CHART — stacked on mobile, side by side on lg */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Members</CardTitle>
             <CardDescription>
               Newly added members and their contact details.
             </CardDescription>
@@ -124,14 +173,19 @@ const Homepage = async () => {
                 No members found yet.
               </p>
             ) : (
-              <div className="space-y-4">
+              /* Scrollable on small screens */
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Email
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Phone
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -143,26 +197,39 @@ const Homepage = async () => {
                               {m.first_name} {m.last_name ?? ""}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              Joined {new Date(m.created_at).toLocaleDateString()}
+                              Joined{" "}
+                              {new Date(m.created_at).toLocaleDateString()}
                             </span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">
-                            {m.ownership_status}
-                          </Badge>
+                          <Badge variant="outline">{m.ownership_status}</Badge>
                         </TableCell>
-                        <TableCell className="text-xs">{m.email}</TableCell>
-                        <TableCell className="text-xs">
+                        <TableCell className="hidden sm:table-cell text-xs">
+                          {m.email}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs">
                           {m.phone_primary}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* PIE CHART */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Ownership Breakdown</CardTitle>
+            <CardDescription>
+              Owner vs Tenant vs Both distribution.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AppPieChart />
           </CardContent>
         </Card>
       </div>

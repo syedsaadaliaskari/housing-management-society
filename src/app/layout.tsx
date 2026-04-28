@@ -5,6 +5,7 @@ import AppSidebar from "@/components/AppSidebar";
 import Navbar from "@/components/Navbar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 import { cookies } from "next/headers";
 
 const geistSans = Geist({
@@ -27,10 +28,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
 
-  const cookieStore = await cookies()
-  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true"
-  
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -49,6 +49,7 @@ export default async function RootLayout({
               <div className="px-4">{children}</div>
             </main>
           </SidebarProvider>
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>

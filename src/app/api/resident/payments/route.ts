@@ -42,3 +42,46 @@ export async function GET(_req: NextRequest) {
   return NextResponse.json(rows);
 }
 
+export async function POST(req: NextRequest) {
+  const session = await auth();
+  const memberId = (session?.user as any)?.memberId as number | undefined;
+
+  if (!session || !memberId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { billId, amount, method } = body as {
+    billId?: number;
+    amount?: number;
+    method?: string;
+  };
+
+  if (!billId || amount == null || !method) {
+    return NextResponse.json(
+      { error: "Missing required fields" },
+      { status: 400 },
+    );
+  }
+
+  const referenceNumber = `REF-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+  const rows = (await (sql as any)`
+    INSERT INTO payments (bill_id, member_id, amount, method, status, reference_number)
+    VALUES (${billId}, ${memberId}, ${amount}, ${method}, 'SUCCESS', ${referenceNumber})
+    RETURNING id, reference_number
+  `) as { id: number; reference_number: string }[];
+
+  await (sql as any)`
+    UPDATE bills
+    SET
+      balance_amount = GREATEST(balance_amount - ${amount}, 0),
+      status = CASE
+        WHEN balance_amount - ${amount} <= 0 THEN 'PAID'
+        ELSE 'PARTIALLY_PAID'
+      END
+    WHERE id = ${billId}
+  `;
+
+  return NextResponse.json(rows[0], { status: 201 });
+}
