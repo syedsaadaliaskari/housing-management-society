@@ -51,11 +51,12 @@ export function MembersClient() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
+  // ✅ Fixed — empty string instead of undefined
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phonePrimary, setPhonePrimary] = useState("");
-  const [ownershipStatus, setOwnershipStatus] = useState<string | undefined>();
+  const [ownershipStatus, setOwnershipStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -66,10 +67,11 @@ export function MembersClient() {
     setLoading(true);
     try {
       const res = await fetch("/api/members");
-      if (!res.ok) throw new Error("Failed to load members");
-      const data = (await res.json()) as Member[];
-      setMembers(data);
-      setFiltered(data);
+      if (res.ok) {
+        const data = (await res.json()) as Member[];
+        setMembers(data);
+        setFiltered(data);
+      }
     } catch {
       toast.error("Failed to load members");
     } finally {
@@ -120,14 +122,15 @@ export function MembersClient() {
         return;
       }
 
-      const newMember = (await res.json()) as Member;
-      setMembers((prev) => [newMember, ...prev]);
+      toast.success("Member added successfully.");
+      await load();
+
+      // ✅ Reset to empty strings
       setFirstName("");
       setLastName("");
       setEmail("");
       setPhonePrimary("");
-      setOwnershipStatus(undefined);
-      toast.success("Member added successfully.");
+      setOwnershipStatus("");
     } finally {
       setSubmitting(false);
     }
@@ -135,7 +138,6 @@ export function MembersClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
-      {/* ADD FORM */}
       <Card>
         <CardHeader>
           <CardTitle>Add Member</CardTitle>
@@ -166,6 +168,7 @@ export function MembersClient() {
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -189,6 +192,8 @@ export function MembersClient() {
                 />
               </div>
             </div>
+
+            {/* ✅ Fixed — ownershipStatus starts as empty string */}
             <div className="space-y-2">
               <Label>Ownership status</Label>
               <Select
@@ -224,7 +229,6 @@ export function MembersClient() {
         </CardContent>
       </Card>
 
-      {/* MEMBERS TABLE */}
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Members</CardTitle>
@@ -272,7 +276,7 @@ export function MembersClient() {
               </div>
               <p className="font-medium text-sm">No members found</p>
               <p className="text-xs text-muted-foreground">
-                Add your first member using the form.
+                Add the first member using the form.
               </p>
             </div>
           ) : (

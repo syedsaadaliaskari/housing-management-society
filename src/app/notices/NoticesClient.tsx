@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -27,8 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Notice = {
   id: number;
@@ -67,7 +68,6 @@ export function NoticesClient() {
   const [filtered, setFiltered] = useState<Notice[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
 
@@ -79,28 +79,8 @@ export function NoticesClient() {
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [noticesRes, blocksRes] = await Promise.all([
-          fetch("/api/notices"),
-          fetch("/api/blocks"),
-        ]);
-        if (noticesRes.ok) {
-          const data = (await noticesRes.json()) as Notice[];
-          setNotices(data);
-          setFiltered(data);
-        }
-        if (blocksRes.ok) setBlocks(await blocksRes.json());
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
 
@@ -120,16 +100,32 @@ export function NoticesClient() {
     setFiltered(result);
   }, [search, priorityFilter, notices]);
 
+  async function load() {
+    setLoading(true);
+    try {
+      const [noticesRes, blocksRes] = await Promise.all([
+        fetch("/api/notices"),
+        fetch("/api/blocks"),
+      ]);
+      if (noticesRes.ok) {
+        const data = (await noticesRes.json()) as Notice[];
+        setNotices(data);
+        setFiltered(data);
+      }
+      if (blocksRes.ok) setBlocks(await blocksRes.json());
+    } catch {
+      toast.error("Failed to load notices");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!title || !content) {
-      setFormError("Title and content are required.");
+      toast.error("Title and content are required.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/notices", {
@@ -148,17 +144,12 @@ export function NoticesClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to publish notice.");
+        toast.error(body?.error ?? "Failed to publish notice.");
         return;
       }
 
-      const refreshed = await fetch("/api/notices");
-      if (refreshed.ok) {
-        const data = (await refreshed.json()) as Notice[];
-        setNotices(data);
-        setFiltered(data);
-      }
-
+      toast.success("Notice published successfully.");
+      await load();
       setTitle("");
       setContent("");
       setPriority("MEDIUM");
@@ -166,8 +157,6 @@ export function NoticesClient() {
       setBlockId("NONE");
       setStartAt("");
       setEndAt("");
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -196,7 +185,6 @@ export function NoticesClient() {
               />
             </div>
 
-            {/* TEXTAREA instead of Input */}
             <div className="space-y-2">
               <Label htmlFor="content">Content</Label>
               <Textarea
@@ -239,7 +227,6 @@ export function NoticesClient() {
               </div>
             </div>
 
-            {/* BLOCK DROPDOWN — only show when audience is BLOCK */}
             {audienceScope === "BLOCK" && (
               <div className="space-y-2">
                 <Label>Block</Label>
@@ -266,40 +253,22 @@ export function NoticesClient() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="startAt">Start at (optional)</Label>
-                <Input
-                  id="startAt"
-                  type="datetime-local"
+                <Label>Start date (optional)</Label>
+                <DatePicker
                   value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
+                  onChange={setStartAt}
+                  placeholder="Select start date"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endAt">End at (optional)</Label>
-                <Input
-                  id="endAt"
-                  type="datetime-local"
+                <Label>End date (optional)</Label>
+                <DatePicker
                   value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
+                  onChange={setEndAt}
+                  placeholder="Select end date"
                 />
               </div>
             </div>
-
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Notice published successfully.</span>
-              </div>
-            )}
 
             <Button
               type="submit"
@@ -328,7 +297,6 @@ export function NoticesClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by title or content..."
@@ -352,16 +320,28 @@ export function NoticesClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading notices...</p>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
+            <div className="space-y-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-20 hidden sm:block" />
+                  <Skeleton className="h-4 w-24 hidden md:block" />
+                  <Skeleton className="h-4 w-24 hidden md:block" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No notices found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                📢
+              </div>
+              <p className="font-medium text-sm">No notices found</p>
+              <p className="text-xs text-muted-foreground">
+                Publish your first notice using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>

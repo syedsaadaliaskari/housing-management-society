@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -27,6 +28,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Ownership = {
   id: number;
@@ -69,7 +72,6 @@ export function OwnershipsClient() {
   const [members, setMembers] = useState<Member[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("ALL");
 
@@ -80,42 +82,40 @@ export function OwnershipsClient() {
   const [purchasePrice, setPurchasePrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [ownershipsRes, membersRes, unitsRes] = await Promise.all([
-          fetch("/api/ownerships"),
-          fetch("/api/members"),
-          fetch("/api/units"),
-        ]);
-        if (ownershipsRes.ok) {
-          const data = (await ownershipsRes.json()) as Ownership[];
-          setRows(data);
-          setFiltered(data);
-        }
-        if (membersRes.ok) setMembers(await membersRes.json());
-        if (unitsRes.ok) setUnits(await unitsRes.json());
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
 
+  async function load() {
+    setLoading(true);
+    try {
+      const [ownershipsRes, membersRes, unitsRes] = await Promise.all([
+        fetch("/api/ownerships"),
+        fetch("/api/members"),
+        fetch("/api/units"),
+      ]);
+      if (ownershipsRes.ok) {
+        const data = (await ownershipsRes.json()) as Ownership[];
+        setRows(data);
+        setFiltered(data);
+      }
+      if (membersRes.ok) setMembers(await membersRes.json());
+      if (unitsRes.ok) setUnits(await unitsRes.json());
+    } catch {
+      toast.error("Failed to load ownership data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     let result = rows;
-
     if (activeFilter === "ACTIVE") {
       result = result.filter((r) => !r.to_date);
     } else if (activeFilter === "PAST") {
       result = result.filter((r) => !!r.to_date);
     }
-
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -124,28 +124,23 @@ export function OwnershipsClient() {
           r.owner_name.toLowerCase().includes(q),
       );
     }
-
     setFiltered(result);
   }, [search, activeFilter, rows]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!unitId) {
-      setFormError("Please select a unit.");
+      toast.error("Please select a unit.");
       return;
     }
     if (!ownerMemberId) {
-      setFormError("Please select an owner member.");
+      toast.error("Please select an owner member.");
       return;
     }
     if (!fromDate) {
-      setFormError("From date is required.");
+      toast.error("From date is required.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/ownerships", {
@@ -163,25 +158,18 @@ export function OwnershipsClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to add ownership record.");
+        toast.error(body?.error ?? "Failed to add ownership record.");
         return;
       }
 
-      const refreshed = await fetch("/api/ownerships");
-      if (refreshed.ok) {
-        const data = (await refreshed.json()) as Ownership[];
-        setRows(data);
-        setFiltered(data);
-      }
-
+      toast.success("Ownership record added successfully.");
+      await load();
       setUnitId(undefined);
       setOwnerMemberId(undefined);
       setFromDate("");
       setToDate("");
       setPurchasePrice("");
       setSalePrice("");
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -199,7 +187,6 @@ export function OwnershipsClient() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* UNIT DROPDOWN */}
             <div className="space-y-2">
               <Label>Unit</Label>
               <Select value={unitId} onValueChange={setUnitId}>
@@ -221,7 +208,6 @@ export function OwnershipsClient() {
               )}
             </div>
 
-            {/* OWNER MEMBER DROPDOWN */}
             <div className="space-y-2">
               <Label>Owner member</Label>
               <Select value={ownerMemberId} onValueChange={setOwnerMemberId}>
@@ -245,22 +231,19 @@ export function OwnershipsClient() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="fromDate">From date</Label>
-                <Input
-                  id="fromDate"
-                  type="date"
+                <Label>From date</Label>
+                <DatePicker
                   value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  required
+                  onChange={setFromDate}
+                  placeholder="Select from date"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="toDate">To date (optional)</Label>
-                <Input
-                  id="toDate"
-                  type="date"
+                <Label>To date (optional)</Label>
+                <DatePicker
                   value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
+                  onChange={setToDate}
+                  placeholder="Select to date"
                 />
               </div>
             </div>
@@ -287,22 +270,6 @@ export function OwnershipsClient() {
                 />
               </div>
             </div>
-
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Ownership record added successfully.</span>
-              </div>
-            )}
 
             <Button
               type="submit"
@@ -331,7 +298,6 @@ export function OwnershipsClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by unit or owner..."
@@ -354,20 +320,28 @@ export function OwnershipsClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">
-              Loading ownership history...
-            </p>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-24 hidden sm:block" />
+                  <Skeleton className="h-4 w-24 hidden sm:block" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No ownership records found.
-            </p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                🏠
+              </div>
+              <p className="font-medium text-sm">No ownership records found</p>
+              <p className="text-xs text-muted-foreground">
+                Add your first ownership record using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>

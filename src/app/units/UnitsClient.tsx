@@ -27,6 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 type Unit = {
   id: number;
@@ -55,42 +57,40 @@ export function UnitsClient() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [unitTypes, setUnitTypes] = useState<UnitType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const [unitNumber, setUnitNumber] = useState("");
-  const [blockId, setBlockId] = useState<string>("NONE");
+  const [blockId, setBlockId] = useState("NONE");
   const [floor, setFloor] = useState("");
-  const [unitTypeId, setUnitTypeId] = useState<string | undefined>();
+  const [unitTypeId, setUnitTypeId] = useState("");
   const [areaSqFt, setAreaSqFt] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [unitsRes, blocksRes, unitTypesRes] = await Promise.all([
-          fetch("/api/units"),
-          fetch("/api/blocks"),
-          fetch("/api/unit-types"),
-        ]);
-
-        if (unitsRes.ok) {
-          const data = (await unitsRes.json()) as Unit[];
-          setUnits(data);
-          setFiltered(data);
-        }
-        if (blocksRes.ok) setBlocks(await blocksRes.json());
-        if (unitTypesRes.ok) setUnitTypes(await unitTypesRes.json());
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [unitsRes, blocksRes, unitTypesRes] = await Promise.all([
+        fetch("/api/units"),
+        fetch("/api/blocks"),
+        fetch("/api/unit-types"),
+      ]);
+      if (unitsRes.ok) {
+        const data = (await unitsRes.json()) as Unit[];
+        setUnits(data);
+        setFiltered(data);
+      }
+      if (blocksRes.ok) setBlocks(await blocksRes.json());
+      if (unitTypesRes.ok) setUnitTypes(await unitTypesRes.json());
+    } catch {
+      toast.error("Failed to load units data");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!search.trim()) {
@@ -110,14 +110,10 @@ export function UnitsClient() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!unitTypeId) {
-      setFormError("Please select a unit type.");
+      toast.error("Please select a unit type.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/units", {
@@ -134,24 +130,18 @@ export function UnitsClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to add unit.");
+        toast.error(body?.error ?? "Failed to add unit.");
         return;
       }
 
-      const refreshed = await fetch("/api/units");
-      if (refreshed.ok) {
-        const data = (await refreshed.json()) as Unit[];
-        setUnits(data);
-        setFiltered(data);
-      }
+      toast.success("Unit added successfully.");
+      await load();
 
       setUnitNumber("");
       setBlockId("NONE");
       setFloor("");
-      setUnitTypeId(undefined);
+      setUnitTypeId("");
       setAreaSqFt("");
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -159,7 +149,6 @@ export function UnitsClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
-      {/* ADD FORM */}
       <Card>
         <CardHeader>
           <CardTitle>Add Unit</CardTitle>
@@ -192,7 +181,6 @@ export function UnitsClient() {
               </div>
             </div>
 
-            {/* BLOCK DROPDOWN */}
             <div className="space-y-2">
               <Label>Block (optional)</Label>
               <Select value={blockId} onValueChange={setBlockId}>
@@ -215,7 +203,7 @@ export function UnitsClient() {
               )}
             </div>
 
-            {/* UNIT TYPE DROPDOWN */}
+            {/* ✅ Fixed — unitTypeId starts as empty string */}
             <div className="space-y-2">
               <Label>Unit type</Label>
               <Select value={unitTypeId} onValueChange={setUnitTypeId}>
@@ -248,22 +236,6 @@ export function UnitsClient() {
               />
             </div>
 
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Unit added successfully.</span>
-              </div>
-            )}
-
             <Button
               type="submit"
               disabled={submitting}
@@ -282,7 +254,6 @@ export function UnitsClient() {
         </CardContent>
       </Card>
 
-      {/* UNITS TABLE */}
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Units</CardTitle>
@@ -291,7 +262,6 @@ export function UnitsClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* SEARCH */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by unit, block or type..."
@@ -304,16 +274,28 @@ export function UnitsClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading units...</p>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-24 hidden sm:block" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-12 hidden md:block" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No units found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                🏢
+              </div>
+              <p className="font-medium text-sm">No units found</p>
+              <p className="text-xs text-muted-foreground">
+                Add your first unit using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>

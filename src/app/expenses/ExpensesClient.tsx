@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -27,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Expense = {
   id: number;
@@ -61,7 +63,6 @@ export function ExpensesClient() {
   const [filtered, setFiltered] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const [categoryId, setCategoryId] = useState<string>("NONE");
@@ -72,30 +73,30 @@ export function ExpensesClient() {
   const [payee, setPayee] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [expensesRes, categoriesRes] = await Promise.all([
-          fetch("/api/expenses"),
-          fetch("/api/expense-categories"),
-        ]);
-        if (expensesRes.ok) {
-          const data = (await expensesRes.json()) as Expense[];
-          setExpenses(data);
-          setFiltered(data);
-        }
-        if (categoriesRes.ok) setCategories(await categoriesRes.json());
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [expensesRes, categoriesRes] = await Promise.all([
+        fetch("/api/expenses"),
+        fetch("/api/expense-categories"),
+      ]);
+      if (expensesRes.ok) {
+        const data = (await expensesRes.json()) as Expense[];
+        setExpenses(data);
+        setFiltered(data);
+      }
+      if (categoriesRes.ok) setCategories(await categoriesRes.json());
+    } catch {
+      toast.error("Failed to load expenses");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!search.trim()) {
@@ -115,14 +116,10 @@ export function ExpensesClient() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!description || !expenseDate || !amount) {
-      setFormError("Description, date, and amount are required.");
+      toast.error("Description, date, and amount are required.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/expenses", {
@@ -141,17 +138,12 @@ export function ExpensesClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to add expense.");
+        toast.error(body?.error ?? "Failed to add expense.");
         return;
       }
 
-      const refreshed = await fetch("/api/expenses");
-      if (refreshed.ok) {
-        const data = (await refreshed.json()) as Expense[];
-        setExpenses(data);
-        setFiltered(data);
-      }
-
+      toast.success("Expense added successfully.");
+      await load();
       setCategoryId("NONE");
       setDescription("");
       setExpenseDate("");
@@ -159,8 +151,6 @@ export function ExpensesClient() {
       setPaymentMode("NONE");
       setPayee("");
       setInvoiceNumber("");
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -213,13 +203,11 @@ export function ExpensesClient() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="expenseDate">Expense date</Label>
-                <Input
-                  id="expenseDate"
-                  type="date"
+                <Label>Expense date</Label>
+                <DatePicker
                   value={expenseDate}
-                  onChange={(e) => setExpenseDate(e.target.value)}
-                  required
+                  onChange={setExpenseDate}
+                  placeholder="Select date"
                 />
               </div>
               <div className="space-y-2">
@@ -272,20 +260,6 @@ export function ExpensesClient() {
               </div>
             </div>
 
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Expense added successfully.</span>
-              </div>
-            )}
-
             <Button
               type="submit"
               disabled={submitting}
@@ -335,11 +309,6 @@ export function ExpensesClient() {
                   <Skeleton className="h-4 w-24 hidden lg:block" />
                 </div>
               ))}
-            </div>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center gap-2">

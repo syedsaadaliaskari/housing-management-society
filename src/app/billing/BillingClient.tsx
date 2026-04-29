@@ -73,7 +73,7 @@ export function BillingClient() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
-  const [unitId, setUnitId] = useState<string | undefined>();
+  const [unitId, setUnitId] = useState("");
   const [billingPeriodStart, setBillingPeriodStart] = useState("");
   const [billingPeriodEnd, setBillingPeriodEnd] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -149,7 +149,8 @@ export function BillingClient() {
         setBills(data);
         setFiltered(data);
       }
-      setUnitId(undefined);
+      // ✅ Reset to empty string
+      setUnitId("");
       setBillingPeriodStart("");
       setBillingPeriodEnd("");
       setDueDate("");
@@ -161,7 +162,6 @@ export function BillingClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
-      {/* CREATE BILL FORM */}
       <Card>
         <CardHeader>
           <CardTitle>Create Bill</CardTitle>
@@ -173,6 +173,7 @@ export function BillingClient() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Unit</Label>
+
               <Select value={unitId} onValueChange={setUnitId}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select unit" />
@@ -257,7 +258,6 @@ export function BillingClient() {
         </CardContent>
       </Card>
 
-      {/* BILLS TABLE */}
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Bills</CardTitle>

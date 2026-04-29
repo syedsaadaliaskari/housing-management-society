@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -26,6 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type PollOption = {
   id: number;
@@ -74,8 +77,6 @@ export function PollsClient() {
   const [endAt, setEndAt] = useState("");
   const [optionInputs, setOptionInputs] = useState<string[]>(["", ""]);
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
     load();
@@ -106,6 +107,8 @@ export function PollsClient() {
         setPolls(data);
         setFiltered(data);
       }
+    } catch {
+      toast.error("Failed to load polls");
     } finally {
       setLoading(false);
     }
@@ -121,15 +124,11 @@ export function PollsClient() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     const nonEmptyOptions = optionInputs.map((o) => o.trim()).filter(Boolean);
     if (nonEmptyOptions.length < 2) {
-      setFormError("Please add at least 2 options.");
+      toast.error("Please add at least 2 options.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/polls", {
@@ -147,10 +146,11 @@ export function PollsClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to create poll.");
+        toast.error(body?.error ?? "Failed to create poll.");
         return;
       }
 
+      toast.success("Poll created successfully.");
       await load();
       setTitle("");
       setDescription("");
@@ -158,8 +158,6 @@ export function PollsClient() {
       setStartAt("");
       setEndAt("");
       setOptionInputs(["", ""]);
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -214,21 +212,19 @@ export function PollsClient() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="startAt">Start at (optional)</Label>
-                <Input
-                  id="startAt"
-                  type="datetime-local"
+                <Label>Start date (optional)</Label>
+                <DatePicker
                   value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
+                  onChange={setStartAt}
+                  placeholder="Select start date"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endAt">End at (optional)</Label>
-                <Input
-                  id="endAt"
-                  type="datetime-local"
+                <Label>End date (optional)</Label>
+                <DatePicker
                   value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
+                  onChange={setEndAt}
+                  placeholder="Select end date"
                 />
               </div>
             </div>
@@ -238,13 +234,31 @@ export function PollsClient() {
               <Label>Options (min. 2)</Label>
               <div className="space-y-2">
                 {optionInputs.map((value, index) => (
-                  <Input
-                    key={index}
-                    value={value}
-                    onChange={(e) => handleOptionChange(index, e.target.value)}
-                    placeholder={`Option ${index + 1}`}
-                    required={index < 2}
-                  />
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      value={value}
+                      onChange={(e) =>
+                        handleOptionChange(index, e.target.value)
+                      }
+                      placeholder={`Option ${index + 1}`}
+                      required={index < 2}
+                    />
+                    {index >= 2 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() =>
+                          setOptionInputs((opts) =>
+                            opts.filter((_, i) => i !== index),
+                          )
+                        }
+                      >
+                        ✕
+                      </Button>
+                    )}
+                  </div>
                 ))}
               </div>
               <Button
@@ -256,22 +270,6 @@ export function PollsClient() {
                 + Add option
               </Button>
             </div>
-
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Poll created successfully.</span>
-              </div>
-            )}
 
             <Button
               type="submit"
@@ -300,7 +298,6 @@ export function PollsClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by title..."
@@ -324,11 +321,28 @@ export function PollsClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading polls...</p>
+            <div className="space-y-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-32 hidden sm:block" />
+                  <Skeleton className="h-4 w-20 hidden md:block" />
+                  <Skeleton className="h-4 w-20 hidden md:block" />
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No polls found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                🗳️
+              </div>
+              <p className="font-medium text-sm">No polls found</p>
+              <p className="text-xs text-muted-foreground">
+                Create your first poll using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>

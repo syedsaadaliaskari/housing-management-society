@@ -82,11 +82,11 @@ export function PaymentsClient() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
-  const [billId, setBillId] = useState<string | undefined>();
-  const [memberId, setMemberId] = useState<string>("NONE");
+  const [billId, setBillId] = useState("");
+  const [memberId, setMemberId] = useState("NONE");
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<string | undefined>();
-  const [status, setStatus] = useState<string>("SUCCESS");
+  const [method, setMethod] = useState("");
+  const [status, setStatus] = useState("SUCCESS");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -183,10 +183,10 @@ export function PaymentsClient() {
       }
       if (refreshedBills.ok) setBills(await refreshedBills.json());
 
-      setBillId(undefined);
+      setBillId("");
       setMemberId("NONE");
       setAmount("");
-      setMethod(undefined);
+      setMethod("");
       setStatus("SUCCESS");
       setReferenceNumber("");
     } finally {
@@ -196,7 +196,6 @@ export function PaymentsClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
-      {/* RECORD PAYMENT FORM */}
       <Card>
         <CardHeader>
           <CardTitle>Record Payment</CardTitle>
@@ -208,6 +207,7 @@ export function PaymentsClient() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Bill</Label>
+
               <Select value={billId} onValueChange={handleBillSelect}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select bill" />
@@ -260,6 +260,7 @@ export function PaymentsClient() {
               </div>
               <div className="space-y-2">
                 <Label>Method</Label>
+
                 <Select value={method} onValueChange={setMethod}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select method" />
@@ -318,7 +319,6 @@ export function PaymentsClient() {
         </CardContent>
       </Card>
 
-      {/* PAYMENTS TABLE */}
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Payments</CardTitle>

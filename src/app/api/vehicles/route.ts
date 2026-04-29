@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 
 type VehicleRow = {
   id: number;
+  member_name: string | null;
+  unit_number: string | null;
   registration_number: string;
   vehicle_type: string | null;
   brand: string | null;
@@ -14,22 +15,29 @@ type VehicleRow = {
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || (session.user as any).role !== "ADMIN") {
-    return null;
-  }
+  if (!session || (session.user as any).role !== "ADMIN") return null;
   return session;
 }
 
 export async function GET(_req: NextRequest) {
   const session = await requireAdmin();
-  if (!session) {
+  if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const rows = (await (sql as any)`
-    SELECT id, registration_number, vehicle_type, brand, color, sticker_number
-    FROM vehicles
-    ORDER BY registration_number
+    SELECT
+      v.id,
+      CONCAT(m.first_name, ' ', COALESCE(m.last_name, '')) AS member_name,
+      u.unit_number,
+      v.registration_number,
+      v.vehicle_type,
+      v.brand,
+      v.color,
+      v.sticker_number
+    FROM vehicles v
+    LEFT JOIN members m ON m.id = v.member_id
+    LEFT JOIN units u ON u.id = v.unit_id
+    ORDER BY v.registration_number
   `) as VehicleRow[];
 
   return NextResponse.json(rows);
@@ -37,9 +45,8 @@ export async function GET(_req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await requireAdmin();
-  if (!session) {
+  if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await req.json();
   const {
@@ -60,12 +67,11 @@ export async function POST(req: NextRequest) {
     stickerNumber?: string | null;
   };
 
-  if (!memberId || !registrationNumber) {
+  if (!memberId || !registrationNumber)
     return NextResponse.json(
       { error: "Missing required fields" },
-      { status: 400 }
+      { status: 400 },
     );
-  }
 
   const rows = (await (sql as any)`
     INSERT INTO vehicles (member_id, unit_id, registration_number, vehicle_type, brand, color, sticker_number)
@@ -75,4 +81,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(rows[0], { status: 201 });
 }
-
