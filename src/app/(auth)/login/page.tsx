@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Eye, EyeOff, Building2 } from "lucide-react";
 import Link from "next/link";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
@@ -53,7 +53,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* LEFT BRANDING PANEL — hidden on mobile */}
+      {/* LEFT BRANDING PANEL */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12 text-primary-foreground">
         <div className="flex items-center gap-3">
           <div className="size-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
@@ -61,7 +61,6 @@ export default function LoginPage() {
           </div>
           <span className="text-lg font-semibold">HSMS</span>
         </div>
-
         <div className="space-y-6">
           <h1 className="text-4xl font-bold leading-tight">
             Housing Society
@@ -88,7 +87,6 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
-
         <p className="text-xs text-primary-foreground/50">
           © 2026 Housing Society Management System. Final Year Project.
         </p>
@@ -97,7 +95,6 @@ export default function LoginPage() {
       {/* RIGHT FORM PANEL */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 bg-background">
         <div className="w-full max-w-sm space-y-8">
-          {/* MOBILE LOGO */}
           <div className="flex lg:hidden items-center gap-3">
             <div className="size-10 rounded-xl bg-primary flex items-center justify-center">
               <Building2 size={20} className="text-primary-foreground" />
@@ -110,7 +107,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* HEADING */}
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
             <p className="text-sm text-muted-foreground">
@@ -118,7 +114,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* FORM */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <label
@@ -206,5 +201,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Loading...
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

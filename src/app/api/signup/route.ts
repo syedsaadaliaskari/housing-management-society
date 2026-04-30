@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+const bcrypt = require("bcryptjs");
 import { sql } from "@/lib/db";
-
-async function hashPassword(password: string) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +14,6 @@ export async function POST(req: NextRequest) {
       unitCode?: string;
     };
 
-    // Validate required fields
     if (!email || !password || !firstName || !phone || !unitCode) {
       return NextResponse.json(
         { error: "All fields are required." },
@@ -36,7 +28,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check unit exists with the code
     const units = (await (sql as any)`
       SELECT id, unit_number
       FROM units
@@ -53,7 +44,6 @@ export async function POST(req: NextRequest) {
 
     const unit = units[0];
 
-    // Check email not already registered
     const existingUsers = (await (sql as any)`
       SELECT id FROM users WHERE email = ${email} LIMIT 1
     `) as { id: number }[];
@@ -65,9 +55,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create member
     const members = (await (sql as any)`
       INSERT INTO members (first_name, last_name, email, phone_primary, ownership_status)
       VALUES (
@@ -82,13 +71,11 @@ export async function POST(req: NextRequest) {
 
     const member = members[0];
 
-    // Create user account
     await (sql as any)`
       INSERT INTO users (email, password_hash, role, member_id, is_active)
       VALUES (${email}, ${passwordHash}, 'RESIDENT', ${member.id}, TRUE)
     `;
 
-    // Link member to unit
     await (sql as any)`
       INSERT INTO unit_residents (unit_id, member_id, role, is_primary_contact, from_date)
       VALUES (${unit.id}, ${member.id}, 'TENANT', TRUE, CURRENT_DATE)

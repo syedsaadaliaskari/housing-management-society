@@ -4,13 +4,14 @@ import { sql } from "@/lib/db";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session || (session.user as any).role !== "ADMIN")
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userId = Number(params.id);
+  const { id } = await params;
+  const userId = Number(id);
 
   const payments = (await (sql as any)`
     SELECT
