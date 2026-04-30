@@ -291,22 +291,52 @@ async function loadRecentMembers(): Promise<RecentMember[]> {
     LIMIT 8
   `) as RecentMember[];
 }
-
 async function loadChartData(): Promise<ChartData> {
-  const res = await fetch(
-    `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/admin/charts`,
-    { cache: "no-store" },
-  );
+  const [monthlyPayments, expensesByCategory, ownershipBreakdown] =
+    await Promise.all([
+      (sql as any)`
+        SELECT
+          TO_CHAR(month_series, 'Mon YY') AS month,
+          COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'SUCCESS'), 0)::int AS collected,
+          COALESCE(SUM(b.balance_amount), 0)::int AS outstanding
+        FROM generate_series(
+          date_trunc('month', NOW()) - INTERVAL '5 months',
+          date_trunc('month', NOW()),
+          '1 month'
+        ) AS month_series
+        LEFT JOIN payments p
+          ON date_trunc('month', p.created_at) = month_series
+        LEFT JOIN bills b
+          ON date_trunc('month', b.due_date) = month_series
+          AND b.status IN ('PENDING', 'OVERDUE', 'PARTIALLY_PAID')
+        GROUP BY month_series
+        ORDER BY month_series ASC
+      `,
+      (sql as any)`
+        SELECT
+          COALESCE(ec.name, 'Other') AS category,
+          SUM(e.amount)::int AS total
+        FROM society_expenses e
+        LEFT JOIN expense_categories ec ON ec.id = e.category_id
+        WHERE e.expense_date >= NOW() - INTERVAL '6 months'
+        GROUP BY ec.name
+        ORDER BY total DESC
+        LIMIT 6
+      `,
+      (sql as any)`
+        SELECT
+          ownership_status,
+          COUNT(*)::int AS count
+        FROM members
+        WHERE is_active = TRUE
+        GROUP BY ownership_status
+      `,
+    ]);
 
-  if (!res.ok) {
-    return {
-      monthlyPayments: [],
-      expensesByCategory: [],
-      ownershipBreakdown: [],
-    };
-  }
-
-  return res.json();
+  return {
+    monthlyPayments: monthlyPayments as ChartData["monthlyPayments"],
+    expensesByCategory: expensesByCategory as ChartData["expensesByCategory"],
+    ownershipBreakdown: ownershipBreakdown as ChartData["ownershipBreakdown"],
+  };
 }
-
 export default Homepage;
