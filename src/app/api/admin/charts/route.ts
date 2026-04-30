@@ -13,7 +13,6 @@ export async function GET(_req: NextRequest) {
   if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Monthly payments trend — last 6 months
   const monthlyPayments = (await (sql as any)`
     SELECT
       TO_CHAR(month_series, 'Mon YY') AS month,
@@ -25,16 +24,14 @@ export async function GET(_req: NextRequest) {
       '1 month'
     ) AS month_series
     LEFT JOIN payments p
-      ON date_trunc('month', p.created_at) = month_series
+      ON date_trunc('month', p.payment_date) = month_series
     LEFT JOIN bills b
-      ON date_trunc('month', b.created_at) = month_series
+      ON date_trunc('month', b.due_date) = month_series
       AND b.status IN ('PENDING', 'OVERDUE', 'PARTIALLY_PAID')
     GROUP BY month_series
     ORDER BY month_series ASC
   `) as { month: string; collected: number; outstanding: number }[];
 
-  // Expenses by category — last 6 months
-  // Expenses by category — last 6 months
   const expensesByCategory = (await (sql as any)`
     SELECT
       COALESCE(ec.name, 'Other') AS category,
@@ -47,7 +44,6 @@ export async function GET(_req: NextRequest) {
     LIMIT 6
   `) as { category: string; total: number }[];
 
-  // Ownership breakdown — Owner vs Tenant vs Both
   const ownershipBreakdown = (await (sql as any)`
     SELECT
       ownership_status,
@@ -63,3 +59,9 @@ export async function GET(_req: NextRequest) {
     ownershipBreakdown,
   });
 }
+
+/* Email: admin@society.com
+
+
+
+Password: password123 */

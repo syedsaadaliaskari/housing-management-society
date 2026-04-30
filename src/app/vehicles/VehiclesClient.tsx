@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -26,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Vehicle = {
   id: number;
@@ -55,7 +57,6 @@ export function VehiclesClient() {
   const [members, setMembers] = useState<Member[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const [memberId, setMemberId] = useState<string | undefined>();
@@ -66,32 +67,32 @@ export function VehiclesClient() {
   const [color, setColor] = useState("");
   const [stickerNumber, setStickerNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [vehiclesRes, membersRes, unitsRes] = await Promise.all([
-          fetch("/api/vehicles"),
-          fetch("/api/members"),
-          fetch("/api/units"),
-        ]);
-        if (vehiclesRes.ok) {
-          const data = (await vehiclesRes.json()) as Vehicle[];
-          setVehicles(data);
-          setFiltered(data);
-        }
-        if (membersRes.ok) setMembers(await membersRes.json());
-        if (unitsRes.ok) setUnits(await unitsRes.json());
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [vehiclesRes, membersRes, unitsRes] = await Promise.all([
+        fetch("/api/vehicles"),
+        fetch("/api/members"),
+        fetch("/api/units"),
+      ]);
+      if (vehiclesRes.ok) {
+        const data = (await vehiclesRes.json()) as Vehicle[];
+        setVehicles(data);
+        setFiltered(data);
+      }
+      if (membersRes.ok) setMembers(await membersRes.json());
+      if (unitsRes.ok) setUnits(await unitsRes.json());
+    } catch {
+      toast.error("Failed to load vehicles data");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!search.trim()) {
@@ -112,18 +113,14 @@ export function VehiclesClient() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setFormError(null);
-    setFormSuccess(false);
-
     if (!memberId) {
-      setFormError("Please select a member.");
+      toast.error("Please select a member.");
       return;
     }
     if (!registrationNumber) {
-      setFormError("Registration number is required.");
+      toast.error("Registration number is required.");
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await fetch("/api/vehicles", {
@@ -142,17 +139,12 @@ export function VehiclesClient() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setFormError(body?.error ?? "Failed to add vehicle.");
+        toast.error(body?.error ?? "Failed to add vehicle.");
         return;
       }
 
-      const refreshed = await fetch("/api/vehicles");
-      if (refreshed.ok) {
-        const data = (await refreshed.json()) as Vehicle[];
-        setVehicles(data);
-        setFiltered(data);
-      }
-
+      toast.success("Vehicle added successfully.");
+      await load();
       setMemberId(undefined);
       setUnitId("NONE");
       setRegistrationNumber("");
@@ -160,8 +152,6 @@ export function VehiclesClient() {
       setBrand("");
       setColor("");
       setStickerNumber("");
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -179,7 +169,6 @@ export function VehiclesClient() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* MEMBER DROPDOWN */}
             <div className="space-y-2">
               <Label>Member</Label>
               <Select value={memberId} onValueChange={setMemberId}>
@@ -201,7 +190,6 @@ export function VehiclesClient() {
               )}
             </div>
 
-            {/* UNIT DROPDOWN */}
             <div className="space-y-2">
               <Label>Unit (optional)</Label>
               <Select value={unitId} onValueChange={setUnitId}>
@@ -230,7 +218,6 @@ export function VehiclesClient() {
               />
             </div>
 
-            {/* VEHICLE TYPE DROPDOWN */}
             <div className="space-y-2">
               <Label>Vehicle type</Label>
               <Select value={vehicleType} onValueChange={setVehicleType}>
@@ -279,22 +266,6 @@ export function VehiclesClient() {
               />
             </div>
 
-            {/* ERROR */}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <span>⚠</span>
-                <span>{formError}</span>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {formSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                <span>✓</span>
-                <span>Vehicle added successfully.</span>
-              </div>
-            )}
-
             <Button
               type="submit"
               disabled={submitting}
@@ -322,7 +293,6 @@ export function VehiclesClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* SEARCH */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by registration, member or brand..."
@@ -335,16 +305,29 @@ export function VehiclesClient() {
             </p>
           </div>
 
-          {/* TABLE */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading vehicles...</p>
-          ) : error ? (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span>⚠</span>
-              <span>{error}</span>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-32 hidden sm:block" />
+                  <Skeleton className="h-4 w-16 hidden md:block" />
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-20 hidden sm:block" />
+                  <Skeleton className="h-4 w-16 hidden md:block" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No vehicles found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center text-2xl">
+                🚗
+              </div>
+              <p className="font-medium text-sm">No vehicles found</p>
+              <p className="text-xs text-muted-foreground">
+                Add your first vehicle using the form.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
