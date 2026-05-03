@@ -304,9 +304,9 @@ async function loadChartData(): Promise<ChartData> {
           date_trunc('month', NOW()),
           '1 month'
         ) AS month_series
-        LEFT JOIN payments p
+        LEFT JOIN public.payments p
           ON date_trunc('month', p.created_at) = month_series
-        LEFT JOIN bills b
+        LEFT JOIN public.bills b
           ON date_trunc('month', b.due_date) = month_series
           AND b.status IN ('PENDING', 'OVERDUE', 'PARTIALLY_PAID')
         GROUP BY month_series
@@ -316,8 +316,8 @@ async function loadChartData(): Promise<ChartData> {
         SELECT
           COALESCE(ec.name, 'Other') AS category,
           SUM(e.amount)::int AS total
-        FROM society_expenses e
-        LEFT JOIN expense_categories ec ON ec.id = e.category_id
+        FROM public.society_expenses e
+        LEFT JOIN public.expense_categories ec ON ec.id = e.category_id
         WHERE e.expense_date >= NOW() - INTERVAL '6 months'
         GROUP BY ec.name
         ORDER BY total DESC
@@ -327,7 +327,7 @@ async function loadChartData(): Promise<ChartData> {
         SELECT
           ownership_status,
           COUNT(*)::int AS count
-        FROM members
+        FROM public.members
         WHERE is_active = TRUE
         GROUP BY ownership_status
       `,

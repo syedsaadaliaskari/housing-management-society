@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
+import { User } from "lucide-react";
 
 type MemberRow = {
   id: number;
