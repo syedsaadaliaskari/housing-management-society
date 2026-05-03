@@ -1,127 +1,148 @@
-## Housing Society Management System
+# Housing Society Management System (HSMS)
 
-Final-year project built with **Next.js (App Router)**, **TypeScript**, and **PostgreSQL**.
+A full-stack web application for managing residential housing societies — built as a Final Year Project using Next.js 16, TypeScript, PostgreSQL (Neon), and NextAuth v5.
+
+## 🔗 Live Demo
+
+[https://housing-management-s-git-f9faae-syed-saad-ali-askari-s-projects.vercel.app](https://housing-management-s-git-f9faae-syed-saad-ali-askari-s-projects.vercel.app)
+
+**Admin login:**
+
+- Email: `saadadmin@society.com`
+- Password: `password`
+
+**Resident login:**
+
+- Email: `ahmed.khan@example.com`
+- Password: `password`
 
 ---
 
-## Prerequisites
+## 🏗️ Tech Stack
+
+- **Framework:** Next.js 16 (App Router, Server Components)
+- **Language:** TypeScript
+- **Database:** PostgreSQL hosted on Neon
+- **Auth:** NextAuth v5 (JWT, bcrypt password hashing)
+- **UI:** shadcn/ui, Tailwind CSS v4, Recharts
+- **Deployment:** Vercel
+
+---
+
+## ✨ Features
+
+### Admin Panel
+
+- **Dashboard** — real-time stats (members, units, complaints, alerts, outstanding dues) with area, bar, and pie charts
+- **Members** — add and manage society members with ownership status
+- **Units** — manage residential and commercial units with unit types
+- **Ownerships** — track ownership history and transfers with purchase/sale prices
+- **Billing** — generate maintenance and utility bills for units
+- **Payments** — record and track payments against bills
+- **Expenses** — log society expenses by category with payment mode tracking
+- **Complaints** — view and update complaint status (OPEN → IN_PROGRESS → RESOLVED → CLOSED)
+- **SOS Alerts** — acknowledge and resolve emergency alerts raised by residents
+- **Notices** — publish announcements with priority and audience targeting
+- **Polls** — create polls with options for resident voting
+- **Vehicles** — register and manage resident vehicles
+- **Reports** — income vs expense charts, defaulters list, financial summaries
+- **Users** — manage user accounts, roles, and view payment history per user
+
+### Resident Portal
+
+- **Dashboard** — outstanding dues, open complaints, active alerts summary
+- **Bills** — view pending bills and pay directly with method selection
+- **Complaints** — submit and track complaint status
+- **Notices** — view published society notices
+- **Polls** — vote in active society polls
+- **SOS** — trigger emergency alerts (Medical, Fire, Security)
+
+---
+
+## 🚀 Running Locally
+
+### Prerequisites
 
 - Node.js 18+
-- PostgreSQL 13+
-- npm or yarn
+- PostgreSQL or Neon account
 
----
+### Setup
 
-## 1. Clone and install
+1. Clone the repository:
 
 ```bash
-Open the code in editor
-
-npm install
-# or: yarn install
+git clone https://github.com/syedsaadaliaskari/housing-management-society.git
+cd housing-management-society
 ```
 
----
+2. Install dependencies:
 
-## 2. Configure environment variables
+```bash
+npm install --legacy-peer-deps
+```
 
-Create a `.env` file in the project root:
+3. Create `.env.local` file:
 
 ```env
-DATABASE_URL=postgres://username:password@localhost:5432/societymanagement
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-random-secret-string
+DATABASE_URL=your_postgresql_connection_string
+AUTH_SECRET=your_random_secret_key
+AUTH_URL=http://localhost:3000
 ```
 
-- Replace `username`, `password`, and host/port as needed.
-- Generate `NEXTAUTH_SECRET` using any random string generator.
-
----
-
-## 3. Set up the PostgreSQL database
-
-1. Create the database:
-
-```bash
-createdb societymanagement
-# or in psql:
-# CREATE DATABASE zuvelio_inventory;
-```
-
-2. Apply the schema:
-
-```bash
-psql -d societymanagement -f schema.sql
-```
-
-3. (Optional) Insert initial data for `members`, `users`, etc., using SQL or a DB GUI.
-
----
-
-## 4. Start the development server
+4. Run the development server:
 
 ```bash
 npm run dev
-# or: yarn dev
 ```
 
-The app will be available at `http://localhost:3000`.
+5. Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 5. Login accounts
+## 🗄️ Database Schema
 
-Admin / resident users are stored in the `users` table.
+The system uses 21 PostgreSQL tables including:
 
-Passwords are stored as **SHA-256 hashes** (see `src/auth.ts`).
+`users` `members` `units` `unit_types` `unit_residents` `unit_ownerships` `bills` `payments` `complaints` `complaint_categories` `complaint_updates` `emergency_alerts` `notices` `polls` `poll_options` `poll_votes` `society_expenses` `expense_categories` `vehicles` `blocks` `member_family_members`
 
-To create an admin user manually:
+---
 
-```sql
-INSERT INTO members (first_name, email, phone_primary, ownership_status)
-VALUES ('Admin', 'admin@example.com', '1234567890', 'OWNER')
-RETURNING id;
+## 📁 Project Structure
 
--- Use the returned member id below and the SHA-256 hash of your password
-INSERT INTO users (email, password_hash, role, member_id, is_active)
-VALUES ('admin@example.com', '<sha256_password_hash>', 'ADMIN', <member_id>, TRUE);
-```
+src/
+├── app/
+│ ├── (auth)/ # Login and signup pages
+│ ├── (main)/ # Admin pages
+│ │ ├── billing/
+│ │ ├── complaints/
+│ │ ├── expenses/
+│ │ ├── members/
+│ │ ├── notices/
+│ │ ├── ownerships/
+│ │ ├── payments/
+│ │ ├── polls/
+│ │ ├── reports/
+│ │ ├── sos/
+│ │ ├── units/
+│ │ └── vehicles/
+│ ├── api/ # API routes
+│ ├── resident/ # Resident portal
+│ └── users/ # User management
+├── components/ # Reusable UI components
+└── lib/ # Database and utilities
 
-Use that email/password on the `/login` page.
+---
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## 🔐 Security
 
-## Getting Started
+- Passwords hashed with bcrypt (cost factor 12)
+- JWT session strategy with encrypted tokens
+- Role-based access control (ADMIN / RESIDENT)
+- All API routes protected with session validation
+- DB connection via SSL (Neon)
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 👨‍💻 Developer
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Syed Saad Ali Askari**
