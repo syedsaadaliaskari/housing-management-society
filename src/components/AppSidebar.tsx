@@ -14,8 +14,13 @@ import {
   Vote,
   User2,
   ChevronUp,
-  UserCheck,
   ShieldCheck,
+  UserCheck,
+  Briefcase,
+  DoorOpen,
+  Shield,
+  CalendarCheck,
+  Package,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,136 +45,68 @@ import {
 } from "./ui/dropdown-menu";
 import { auth } from "@/auth";
 
-const adminOverviewItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-  },
-];
+const adminOverviewItems = [{ title: "Dashboard", url: "/", icon: Home }];
 
 const adminMemberPropertyItems = [
-  {
-    title: "Members",
-    url: "/members",
-    icon: Users,
-  },
-  {
-    title: "Units & Properties",
-    url: "/units",
-    icon: Building2,
-  },
-  {
-    title: "Ownership History",
-    url: "/ownerships",
-    icon: History,
-  },
-  {
-    title: "Vehicles",
-    url: "/vehicles",
-    icon: Car,
-  },
-  {
-    title: "Visitors",
-    url: "/visitors",
-    icon: UserCheck,
-  },
+  { title: "Members", url: "/members", icon: Users },
+  { title: "Units & Properties", url: "/units", icon: Building2 },
+  { title: "Ownership History", url: "/ownerships", icon: History },
+  { title: "Vehicles", url: "/vehicles", icon: Car },
+  { title: "Visitors", url: "/visitors", icon: UserCheck },
+  { title: "Staff & Vendors", url: "/staff", icon: Briefcase },
 ];
 
 const adminFinanceItems = [
-  {
-    title: "Maintenance & Utility Bills",
-    url: "/billing",
-    icon: FileText,
-  },
-  {
-    title: "Payments",
-    url: "/payments",
-    icon: CreditCard,
-  },
-  {
-    title: "Expenses",
-    url: "/expenses",
-    icon: Receipt,
-  },
-  {
-    title: "Financial Reports",
-    url: "/reports",
-    icon: BarChart3,
-  },
+  { title: "Maintenance & Utility Bills", url: "/billing", icon: FileText },
+  { title: "Payments", url: "/payments", icon: CreditCard },
+  { title: "Expenses", url: "/expenses", icon: Receipt },
+  { title: "Financial Reports", url: "/reports", icon: BarChart3 },
 ];
 
 const adminCommunicationItems = [
-  {
-    title: "Notices",
-    url: "/notices",
-    icon: Bell,
-  },
+  { title: "Notices", url: "/notices", icon: Bell },
   {
     title: "Complaints & Requests",
     url: "/complaints",
     icon: MessageSquareWarning,
   },
-  {
-    title: "Emergency Alerts (SOS)",
-    url: "/sos",
-    icon: Siren,
-  },
-  {
-    title: "Polls & Voting",
-    url: "/polls",
-    icon: Vote,
-  },
+  { title: "Emergency Alerts (SOS)", url: "/sos", icon: Siren },
+  { title: "Polls & Voting", url: "/polls", icon: Vote },
 ];
 
-// Resident-focused navigation
+const adminSecurityItems = [
+  { title: "Gate Management", url: "/gate-log", icon: DoorOpen },
+  { title: "Security Patrolling", url: "/patrols", icon: Shield },
+];
+
+const adminFacilityItems = [
+  { title: "Facilities & Bookings", url: "/amenities", icon: CalendarCheck },
+  { title: "Inventory", url: "/inventory", icon: Package },
+];
+
 const residentDashboardItems = [
-  {
-    title: "My Dashboard",
-    url: "/resident",
-    icon: Home,
-  },
+  { title: "My Dashboard", url: "/resident", icon: Home },
 ];
 
 const residentCommunityItems = [
-  {
-    title: "Notice Board",
-    url: "/resident/notices",
-    icon: Bell,
-  },
+  { title: "Notice Board", url: "/resident/notices", icon: Bell },
   {
     title: "Complaints & Suggestions",
     url: "/resident/complaints",
     icon: MessageSquareWarning,
   },
-  {
-    title: "Emergency Alerts (SOS)",
-    url: "/resident/sos",
-    icon: Siren,
-  },
-  {
-    title: "Polls & Voting",
-    url: "/resident/polls",
-    icon: Vote,
-  },
-  {
-    title: "My Visitors",
-    url: "/resident/visitors",
-    icon: UserCheck,
-  },
+  { title: "Emergency Alerts (SOS)", url: "/resident/sos", icon: Siren },
+  { title: "Polls & Voting", url: "/resident/polls", icon: Vote },
+  { title: "My Visitors", url: "/resident/visitors", icon: UserCheck },
 ];
 
 const residentFinanceItems = [
-  {
-    title: "My Bills",
-    url: "/resident/bills",
-    icon: FileText,
-  },
-  {
-    title: "My Payments",
-    url: "/resident/payments",
-    icon: CreditCard,
-  },
+  { title: "My Bills", url: "/resident/bills", icon: FileText },
+  { title: "My Payments", url: "/resident/payments", icon: CreditCard },
+];
+
+const residentBookingItems = [
+  { title: "Book a Facility", url: "/resident/bookings", icon: CalendarCheck },
 ];
 
 const AppSidebar = async () => {
@@ -180,7 +117,6 @@ const AppSidebar = async () => {
 
   const displayName =
     user?.name || user?.email || (role ? `${role} user` : "User");
-  const roleLabel = role;
 
   return (
     <Sidebar collapsible="icon">
@@ -239,6 +175,23 @@ const AppSidebar = async () => {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {residentFinanceItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupLabel>Facilities</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {residentBookingItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
                         <Link href={item.url}>
@@ -322,6 +275,40 @@ const AppSidebar = async () => {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupLabel>Security & Gate</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {adminSecurityItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupLabel>Facilities & Inventory</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {adminFacilityItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           </>
         )}
       </SidebarContent>
@@ -337,7 +324,7 @@ const AppSidebar = async () => {
                       {displayName}
                     </span>
                     <span className="text-xs text-muted-foreground uppercase">
-                      {roleLabel}
+                      {role}
                     </span>
                   </span>
                   <ChevronUp className="ml-auto" />

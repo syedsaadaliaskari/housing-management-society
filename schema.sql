@@ -347,3 +347,130 @@ CREATE TABLE visitors (
 CREATE INDEX idx_visitors_member ON visitors(member_id);
 CREATE INDEX idx_visitors_status  ON visitors(status);
 CREATE INDEX idx_visitors_date    ON visitors(created_at);
+
+-- ========================
+-- Staff & Vendor Management
+-- ========================
+CREATE TABLE staff_vendors (
+    id              BIGSERIAL PRIMARY KEY,
+    full_name       VARCHAR(200) NOT NULL,
+    phone           VARCHAR(30),
+    type            VARCHAR(20) NOT NULL
+        CHECK (type IN ('MAID','DRIVER','COOK','GARDENER','VENDOR','SECURITY','OTHER')),
+    company_name    VARCHAR(200),
+    id_card_number  VARCHAR(50),
+    member_id       BIGINT REFERENCES members(id) ON DELETE SET NULL,
+    unit_id         BIGINT REFERENCES units(id) ON DELETE SET NULL,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    entry_time      TIME,
+    exit_time       TIME,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_staff_vendors_type   ON staff_vendors(type);
+CREATE INDEX idx_staff_vendors_active ON staff_vendors(is_active);
+
+-- ========================
+-- Gate Management
+-- ========================
+CREATE TABLE gate_logs (
+    id              BIGSERIAL PRIMARY KEY,
+    person_name     VARCHAR(200) NOT NULL,
+    person_type     VARCHAR(20) NOT NULL
+        CHECK (person_type IN ('VISITOR','STAFF','VENDOR','RESIDENT','DELIVERY','OTHER')),
+    direction       VARCHAR(5) NOT NULL CHECK (direction IN ('IN','OUT')),
+    vehicle_number  VARCHAR(50),
+    unit_ref        VARCHAR(50),
+    purpose         VARCHAR(200),
+    gate            VARCHAR(50) DEFAULT 'Main Gate',
+    logged_by       BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_gate_logs_date      ON gate_logs(created_at);
+CREATE INDEX idx_gate_logs_direction ON gate_logs(direction);
+
+-- ========================
+-- Security Patrolling
+-- ========================
+CREATE TABLE patrol_logs (
+    id              BIGSERIAL PRIMARY KEY,
+    guard_name      VARCHAR(200) NOT NULL,
+    checkpoint      VARCHAR(200) NOT NULL,
+    notes           TEXT,
+    status          VARCHAR(20) NOT NULL DEFAULT 'COMPLETED'
+        CHECK (status IN ('COMPLETED','ISSUE_FOUND','SKIPPED')),
+    logged_by       BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_patrol_logs_date   ON patrol_logs(created_at);
+CREATE INDEX idx_patrol_logs_status ON patrol_logs(status);
+
+-- ========================
+-- Facility & Amenity Booking
+-- ========================
+CREATE TABLE amenities (
+    id              BIGSERIAL PRIMARY KEY,
+    name            VARCHAR(100) NOT NULL,
+    description     TEXT,
+    capacity        INT,
+    open_time       TIME,
+    close_time      TIME,
+    booking_fee     NUMERIC(10,2) DEFAULT 0,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE bookings (
+    id              BIGSERIAL PRIMARY KEY,
+    amenity_id      BIGINT NOT NULL REFERENCES amenities(id) ON DELETE CASCADE,
+    member_id       BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    unit_id         BIGINT REFERENCES units(id) ON DELETE SET NULL,
+    booking_date    DATE NOT NULL,
+    start_time      TIME NOT NULL,
+    end_time        TIME NOT NULL,
+    purpose         VARCHAR(200),
+    status          VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),
+    admin_notes     TEXT,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_booking_times CHECK (end_time > start_time)
+);
+CREATE INDEX idx_bookings_amenity ON bookings(amenity_id);
+CREATE INDEX idx_bookings_member  ON bookings(member_id);
+CREATE INDEX idx_bookings_date    ON bookings(booking_date);
+CREATE INDEX idx_bookings_status  ON bookings(status);
+
+-- ========================
+-- Inventory Management
+-- ========================
+CREATE TABLE inventory_categories (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+CREATE TABLE inventory_items (
+    id                  BIGSERIAL PRIMARY KEY,
+    name                VARCHAR(200) NOT NULL,
+    category_id         BIGINT REFERENCES inventory_categories(id) ON DELETE SET NULL,
+    description         TEXT,
+    quantity            INT NOT NULL DEFAULT 0,
+    unit                VARCHAR(50) DEFAULT 'pcs',
+    low_stock_threshold INT DEFAULT 5,
+    location            VARCHAR(100),
+    purchase_price      NUMERIC(12,2),
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_inventory_category ON inventory_items(category_id);
+CREATE INDEX idx_inventory_active   ON inventory_items(is_active);
+
+INSERT INTO inventory_categories (name, description) VALUES
+  ('Cleaning Supplies', 'Mops, detergents, brooms'),
+  ('Electrical',        'Bulbs, switches, wiring'),
+  ('Plumbing',          'Pipes, fittings, valves'),
+  ('Tools & Equipment', 'Hand tools, power tools'),
+  ('Generator & Fuel',  'Diesel, oil, spare parts'),
+  ('Office Supplies',   'Paper, pens, stationery'),
+  ('Safety Equipment',  'Fire extinguishers, first aid'),
+  ('Other',             'Miscellaneous items');
