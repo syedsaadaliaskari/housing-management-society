@@ -1,5 +1,6 @@
 "use client";
-
+import Link from "next/link";
+import { Eye } from "lucide-react";
 import { useEffect, useState, FormEvent } from "react";
 import { toast } from "sonner";
 import {
@@ -51,7 +52,6 @@ export function MembersClient() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
-  // ✅ Fixed — empty string instead of undefined
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -125,7 +125,6 @@ export function MembersClient() {
       toast.success("Member added successfully.");
       await load();
 
-      // ✅ Reset to empty strings
       setFirstName("");
       setLastName("");
       setEmail("");
@@ -193,7 +192,6 @@ export function MembersClient() {
               </div>
             </div>
 
-            {/* ✅ Fixed — ownershipStatus starts as empty string */}
             <div className="space-y-2">
               <Label>Ownership status</Label>
               <Select
@@ -298,7 +296,13 @@ export function MembersClient() {
                   {filtered.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell className="font-medium">
-                        {m.first_name} {m.last_name ?? ""}
+                        <Link
+                          href={`/members/${m.id}`}
+                          className="hover:underline underline-offset-2 flex items-center gap-1"
+                        >
+                          {m.first_name} {m.last_name ?? ""}
+                          <Eye className="size-3 text-muted-foreground" />
+                        </Link>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                         {m.email}

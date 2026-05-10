@@ -474,3 +474,29 @@ INSERT INTO inventory_categories (name, description) VALUES
   ('Office Supplies',   'Paper, pens, stationery'),
   ('Safety Equipment',  'Fire extinguishers, first aid'),
   ('Other',             'Miscellaneous items');
+
+
+  CREATE TABLE notifications (
+  id            SERIAL PRIMARY KEY,
+  user_id       INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  title         VARCHAR(150)  NOT NULL,
+  body          TEXT,
+  type          VARCHAR(30)   NOT NULL
+    CHECK (type IN ('SOS','NOTICE','COMPLAINT','BILL','PAYMENT','BOOKING','POLL','GENERAL')),
+  reference_id  INTEGER,
+  is_read       BOOLEAN       NOT NULL DEFAULT FALSE,
+  created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user    ON notifications(user_id);
+CREATE INDEX idx_notifications_unread  ON notifications(user_id, is_read) WHERE is_read = FALSE;
+
+CREATE TABLE IF NOT EXISTS notification_logs (
+  id          BIGSERIAL PRIMARY KEY,
+  member_id   BIGINT REFERENCES members(id) ON DELETE CASCADE,
+  channel     VARCHAR(10) NOT NULL CHECK (channel IN ('EMAIL', 'SMS')),
+  subject     VARCHAR(255),
+  message     TEXT NOT NULL,
+  status      VARCHAR(20) NOT NULL DEFAULT 'SENT',
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);

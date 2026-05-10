@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
@@ -27,17 +27,15 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { Download, FileText, FileSpreadsheet, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 type ReportSummary = {
   totalIncome: string;
   totalExpense: string;
   outstanding: string;
   defaulterCount: number;
-  monthlyData: {
-    month: string;
-    income: string;
-    expense: string;
-  }[];
+  monthlyData: { month: string; income: string; expense: string }[];
   defaulters: {
     member_name: string;
     email: string;
@@ -48,7 +46,6 @@ type ReportSummary = {
   outstandingBills: {
     member_name: string;
     email: string;
-    bill_type: string;
     amount: string;
     balance_amount: string;
     due_date: string;
@@ -66,22 +63,66 @@ export function ReportsClient() {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportingCSV, setExportingCSV] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
+    (async () => {
       try {
         const res = await fetch("/api/reports");
         if (!res.ok) throw new Error("Failed to load reports summary");
-        const data = (await res.json()) as ReportSummary;
-        setSummary(data);
+        setSummary(await res.json());
       } catch (err) {
         setError((err as Error).message);
       } finally {
         setLoading(false);
       }
-    };
-    load();
+    })();
   }, []);
+
+  const handleCSV = async () => {
+    setExportingCSV(true);
+    try {
+      const res = await fetch("/api/reports/export?format=csv");
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `financial-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("CSV downloaded");
+    } catch {
+      toast.error("CSV export failed");
+    } finally {
+      setExportingCSV(false);
+    }
+  };
+
+  const handlePDF = async () => {
+    setExportingPDF(true);
+    try {
+      const res = await fetch("/api/reports/export?format=pdf");
+      if (!res.ok) throw new Error("Export failed");
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+
+      win?.addEventListener("load", () => {
+        setTimeout(() => {
+          win.print();
+          URL.revokeObjectURL(url);
+        }, 400);
+      });
+      toast.success("PDF report opened — use Print → Save as PDF");
+    } catch {
+      toast.error("PDF export failed");
+    } finally {
+      setExportingPDF(false);
+    }
+  };
 
   if (loading)
     return (
@@ -89,9 +130,7 @@ export function ReportsClient() {
         Loading financial summary...
       </p>
     );
-
   if (error) return <p className="text-sm text-red-500">{error}</p>;
-
   if (!summary) return null;
 
   const chartData = summary.monthlyData.map((d) => ({
@@ -99,13 +138,45 @@ export function ReportsClient() {
     Income: Number(d.income),
     Expense: Number(d.expense),
   }));
-
   const net = Number(summary.totalIncome) - Number(summary.totalExpense);
 
   return (
     <div className="space-y-6">
-      {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm text-muted-foreground mr-1">Export:</span>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleCSV}
+          disabled={exportingCSV}
+          className="gap-2"
+        >
+          {exportingCSV ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileSpreadsheet className="h-4 w-4" />
+          )}
+          Download CSV
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handlePDF}
+          disabled={exportingPDF}
+          className="gap-2"
+        >
+          {exportingPDF ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4" />
+          )}
+          Export PDF
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-1">
             <CardDescription>Total Income</CardDescription>
@@ -154,9 +225,7 @@ export function ReportsClient() {
           </CardHeader>
           <CardContent>
             <p
-              className={`text-2xl font-semibold ${
-                net >= 0 ? "text-green-600" : "text-red-600"
-              }`}
+              className={`text-2xl font-semibold ${net >= 0 ? "text-green-600" : "text-red-600"}`}
             >
               Rs {net.toLocaleString()}
             </p>
@@ -167,7 +236,6 @@ export function ReportsClient() {
         </Card>
       </div>
 
-      {/* CHART — Income vs Expense */}
       <Card>
         <CardHeader>
           <CardTitle>Income vs Expenses</CardTitle>
@@ -206,15 +274,17 @@ export function ReportsClient() {
         </CardContent>
       </Card>
 
-      {/* DEFAULTERS + OUTSTANDING BILLS — stacked on mobile, side by side on lg */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* DEFAULTERS TABLE */}
         <Card>
           <CardHeader>
-            <CardTitle>Defaulters</CardTitle>
-            <CardDescription>
-              Members with overdue bills — top 10.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle>Defaulters</CardTitle>
+                <CardDescription>
+                  Members with overdue bills — top 10.
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {summary.defaulters.length === 0 ? (
@@ -263,7 +333,6 @@ export function ReportsClient() {
           </CardContent>
         </Card>
 
-        {/* OUTSTANDING BILLS TABLE */}
         <Card>
           <CardHeader>
             <CardTitle>Outstanding Bills</CardTitle>
@@ -282,7 +351,6 @@ export function ReportsClient() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Member</TableHead>
-
                       <TableHead>Balance</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -300,7 +368,6 @@ export function ReportsClient() {
                             </span>
                           </div>
                         </TableCell>
-
                         <TableCell className="text-sm font-medium">
                           Rs {Number(b.balance_amount).toLocaleString()}
                         </TableCell>

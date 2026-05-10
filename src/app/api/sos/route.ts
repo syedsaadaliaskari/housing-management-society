@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
+import { sendNotification } from "@/lib/notifications";
 
 type SosRow = {
   id: number;
@@ -73,7 +74,22 @@ export async function POST(req: NextRequest) {
       ${message ?? null}, 'ACTIVE'
     )
     RETURNING id
+
+    
   `) as { id: number }[];
+
+  const allAdmins = await (sql as any)`
+  SELECT id FROM users WHERE role = 'ADMIN' AND is_active = TRUE
+`;
+  for (const admin of allAdmins) {
+    await sendNotification(
+      admin.id,
+      "🚨 Emergency Alert",
+      `${alertType} alert raised — ${message ?? "no details"}`,
+      "SOS",
+      rows[0].id,
+    );
+  }
 
   return NextResponse.json(rows[0], { status: 201 });
 }

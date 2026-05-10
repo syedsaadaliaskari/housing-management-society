@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
+import { sendNotification } from "@/lib/notifications";
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 
@@ -54,28 +54,21 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const {
-    title,
-    content,
-    priority,
-    audienceScope,
-    blockId,
-    startAt,
-    endAt,
-  } = body as {
-    title?: string;
-    content?: string;
-    priority?: string;
-    audienceScope?: string;
-    blockId?: number | null;
-    startAt?: string | null;
-    endAt?: string | null;
-  };
+  const { title, content, priority, audienceScope, blockId, startAt, endAt } =
+    body as {
+      title?: string;
+      content?: string;
+      priority?: string;
+      audienceScope?: string;
+      blockId?: number | null;
+      startAt?: string | null;
+      endAt?: string | null;
+    };
 
   if (!title || !content || !priority) {
     return NextResponse.json(
       { error: "Missing required fields" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -103,6 +96,18 @@ export async function POST(req: NextRequest) {
     RETURNING id
   `) as { id: number }[];
 
+  const allUsers = await (sql as any)`
+  SELECT id FROM users WHERE is_active = TRUE
+`;
+  for (const u of allUsers) {
+    await sendNotification(
+      u.id,
+      `📢 New Notice: ${title}`,
+      content ?? null,
+      "NOTICE",
+      rows[0].id,
+    );
+  }
+
   return NextResponse.json(rows[0], { status: 201 });
 }
-

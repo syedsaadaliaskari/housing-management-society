@@ -13,21 +13,25 @@ import {
 } from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
 import { useTheme } from "next-themes";
-import { SidebarTrigger, useSidebar } from "./ui/sidebar";
+import { SidebarTrigger } from "./ui/sidebar";
+import { NotificationBell } from "./NotificationBell";
 
 const Navbar = () => {
   const { theme, setTheme } = useTheme();
-  const { toggleSidebar } = useSidebar();
   return (
-    <nav className="p-4 flex items-center justify-between sticky top-0 bg-background z-10">
+    <nav className="p-4 flex items-center justify-between sticky top-0 bg-background z-10 border-b">
       {/* LEFT */}
       <SidebarTrigger />
-      {/* <Button variant="outline" onClick={toggleSidebar}>
-        Custom Button
-      </Button> */}
+
       {/* RIGHT */}
-      <div className="flex items-center gap-4">
-        <Link href="/">Dashboard</Link>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <Link href="/" className="hidden sm:block text-sm">
+          Dashboard
+        </Link>
+
+        {/* NOTIFICATION BELL */}
+        <NotificationBell />
+
         {/* THEME MENU */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -49,6 +53,7 @@ const Navbar = () => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
         {/* USER MENU */}
         <DropdownMenu>
           <DropdownMenuTrigger>

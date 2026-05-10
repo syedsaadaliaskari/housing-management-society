@@ -14,13 +14,13 @@ import {
   Vote,
   User2,
   ChevronUp,
-  ShieldCheck,
   UserCheck,
   Briefcase,
   DoorOpen,
   Shield,
   CalendarCheck,
   Package,
+  UserCog,
 } from "lucide-react";
 import {
   Sidebar,
@@ -65,6 +65,7 @@ const adminFinanceItems = [
 
 const adminCommunicationItems = [
   { title: "Notices", url: "/notices", icon: Bell },
+  { title: "Notifications", url: "/notifications", icon: Bell },
   {
     title: "Complaints & Requests",
     url: "/complaints",
@@ -98,6 +99,7 @@ const residentCommunityItems = [
   { title: "Emergency Alerts (SOS)", url: "/resident/sos", icon: Siren },
   { title: "Polls & Voting", url: "/resident/polls", icon: Vote },
   { title: "My Visitors", url: "/resident/visitors", icon: UserCheck },
+  { title: "My Vehicles", url: "/vehicles", icon: Car },
 ];
 
 const residentFinanceItems = [
@@ -107,6 +109,10 @@ const residentFinanceItems = [
 
 const residentBookingItems = [
   { title: "Book a Facility", url: "/resident/bookings", icon: CalendarCheck },
+];
+
+const residentAccountItems = [
+  { title: "My Profile", url: "/resident/profile", icon: UserCog },
 ];
 
 const AppSidebar = async () => {
@@ -192,6 +198,23 @@ const AppSidebar = async () => {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {residentBookingItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupLabel>Account</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {residentAccountItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
                         <Link href={item.url}>
@@ -334,6 +357,11 @@ const AppSidebar = async () => {
                 <DropdownMenuItem disabled>
                   {user?.email ?? "No email"}
                 </DropdownMenuItem>
+                {isResident && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/resident/profile">My Profile</Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                   <Link href="/api/auth/signout">Sign out</Link>
                 </DropdownMenuItem>

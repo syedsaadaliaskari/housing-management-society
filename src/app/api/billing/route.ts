@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
+import { sendNotification } from "@/lib/notifications";
 import { auth } from "@/auth";
 import { sql } from "@/lib/db";
 
@@ -53,19 +53,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const {
-    unitId,
-    billingPeriodStart,
-    billingPeriodEnd,
-    dueDate,
-    totalAmount,
-  } = body as {
-    unitId?: number;
-    billingPeriodStart?: string;
-    billingPeriodEnd?: string;
-    dueDate?: string;
-    totalAmount?: number;
-  };
+  const { unitId, billingPeriodStart, billingPeriodEnd, dueDate, totalAmount } =
+    body as {
+      unitId?: number;
+      billingPeriodStart?: string;
+      billingPeriodEnd?: string;
+      dueDate?: string;
+      totalAmount?: number;
+    };
 
   if (
     !unitId ||
@@ -76,7 +71,7 @@ export async function POST(req: NextRequest) {
   ) {
     return NextResponse.json(
       { error: "Missing required fields" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -102,6 +97,22 @@ export async function POST(req: NextRequest) {
     RETURNING id
   `) as { id: number }[];
 
+  const residents = await (sql as any)`
+  SELECT u.id
+  FROM users u
+  JOIN members m ON m.id = u.member_id
+  JOIN unit_residents ur ON ur.member_id = m.id
+  WHERE ur.unit_id = ${unitId} AND ur.to_date IS NULL AND u.is_active = TRUE
+`;
+  for (const r of residents) {
+    await sendNotification(
+      r.id,
+      "💳 New Bill Generated",
+      `A new bill has been created for your unit. Due: ${dueDate}`,
+      "BILL",
+      rows[0].id,
+    );
+  }
+
   return NextResponse.json(rows[0], { status: 201 });
 }
-

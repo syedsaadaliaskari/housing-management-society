@@ -1,5 +1,6 @@
 "use client";
 
+import { Zap } from "lucide-react";
 import { useEffect, useState, FormEvent } from "react";
 import { toast } from "sonner";
 import {
@@ -79,7 +80,46 @@ export function BillingClient() {
   const [dueDate, setDueDate] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [autoMonth, setAutoMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [autoDueDays, setAutoDueDays] = useState("15");
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoResult, setAutoResult] = useState<{
+    generated: number;
+    skipped: number;
+    billingPeriod: string;
+    dueDate: string;
+  } | null>(null);
 
+  const handleAutoGenerate = async () => {
+    setAutoRunning(true);
+    setAutoResult(null);
+    try {
+      const res = await fetch("/api/billing/auto-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          billingMonth: autoMonth,
+          dueDays: Number(autoDueDays),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Auto-generation failed");
+        return;
+      }
+      const data = await res.json();
+      setAutoResult(data);
+      toast.success(
+        `Generated ${data.generated} bills, skipped ${data.skipped}`,
+      );
+      await load();
+    } finally {
+      setAutoRunning(false);
+    }
+  };
   useEffect(() => {
     load();
   }, []);
@@ -149,7 +189,7 @@ export function BillingClient() {
         setBills(data);
         setFiltered(data);
       }
-      // ✅ Reset to empty string
+
       setUnitId("");
       setBillingPeriodStart("");
       setBillingPeriodEnd("");
@@ -162,6 +202,79 @@ export function BillingClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]">
+      <Card className="border-dashed">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Zap className="size-4 text-amber-500" /> Auto Billing Scheduler
+          </CardTitle>
+          <CardDescription>
+            Automatically generate monthly bills for all active units based on
+            their default maintenance and utility charges.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="autoMonth">Billing Month</Label>
+              <Input
+                id="autoMonth"
+                type="month"
+                value={autoMonth}
+                onChange={(e) => setAutoMonth(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dueDays">Due on day of month</Label>
+              <Input
+                id="dueDays"
+                type="number"
+                min={1}
+                max={28}
+                value={autoDueDays}
+                onChange={(e) => setAutoDueDays(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {autoResult && (
+            <div className="rounded-lg bg-muted p-3 text-sm space-y-1">
+              <p>
+                <span className="font-medium text-green-600">
+                  ✓ {autoResult.generated} bills generated
+                </span>
+                {autoResult.skipped > 0 && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {autoResult.skipped} skipped (already exist or zero
+                    amount)
+                  </span>
+                )}
+              </p>
+              <p className="text-muted-foreground">
+                Period: {autoResult.billingPeriod} · Due: {autoResult.dueDate}
+              </p>
+            </div>
+          )}
+
+          <Button
+            onClick={handleAutoGenerate}
+            disabled={autoRunning}
+            variant="outline"
+            className="w-full sm:w-auto"
+          >
+            {autoRunning ? (
+              <span className="flex items-center gap-2">
+                <span className="size-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                Generating…
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <Zap className="size-4" /> Generate Bills for Month
+              </span>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Create Bill</CardTitle>
