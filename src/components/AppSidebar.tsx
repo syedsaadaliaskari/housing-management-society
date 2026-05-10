@@ -14,6 +14,7 @@ import {
   Vote,
   User2,
   ChevronUp,
+  UserCheck,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -67,6 +68,11 @@ const adminMemberPropertyItems = [
     title: "Vehicles",
     url: "/vehicles",
     icon: Car,
+  },
+  {
+    title: "Visitors",
+    url: "/visitors",
+    icon: UserCheck,
   },
 ];
 
@@ -145,6 +151,11 @@ const residentCommunityItems = [
     title: "Polls & Voting",
     url: "/resident/polls",
     icon: Vote,
+  },
+  {
+    title: "My Visitors",
+    url: "/resident/visitors",
+    icon: UserCheck,
   },
 ];
 

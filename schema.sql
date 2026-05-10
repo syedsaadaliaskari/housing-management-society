@@ -322,3 +322,28 @@ CREATE TABLE poll_votes (
 CREATE INDEX idx_poll_votes_poll ON poll_votes(poll_id);
 CREATE INDEX idx_poll_votes_member ON poll_votes(member_id);
 
+-- ========================= 
+-- Visitor Management
+-- =========================
+
+CREATE TABLE visitors (
+    id                  BIGSERIAL PRIMARY KEY,
+    member_id           BIGINT REFERENCES members(id) ON DELETE SET NULL,
+    unit_id             BIGINT REFERENCES units(id) ON DELETE SET NULL,
+    visitor_name        VARCHAR(200) NOT NULL,
+    visitor_phone       VARCHAR(30),
+    purpose             VARCHAR(200),
+    vehicle_number      VARCHAR(50),
+    status              VARCHAR(20) NOT NULL DEFAULT 'EXPECTED'
+        CHECK (status IN ('EXPECTED', 'CHECKED_IN', 'CHECKED_OUT', 'DENIED')),
+    pre_approved        BOOLEAN NOT NULL DEFAULT FALSE,
+    expected_at         TIMESTAMP,
+    checked_in_at       TIMESTAMP,
+    checked_out_at      TIMESTAMP,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_by          BIGINT REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_visitors_member ON visitors(member_id);
+CREATE INDEX idx_visitors_status  ON visitors(status);
+CREATE INDEX idx_visitors_date    ON visitors(created_at);
