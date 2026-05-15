@@ -123,5 +123,28 @@ export async function PATCH(req: NextRequest) {
     WHERE id = ${id}
   `;
 
+  const memberRows = (await (sql as any)`
+    SELECT m.user_id
+    FROM complaints c
+    JOIN members m ON c.member_id = m.id
+    WHERE c.id = ${id}
+  `) as { user_id: number }[];
+
+  if (memberRows[0]?.user_id) {
+    const statusLabel: Record<string, string> = {
+      OPEN: "re-opened",
+      IN_PROGRESS: "is now in progress",
+      RESOLVED: "has been resolved ✅",
+      CLOSED: "has been closed",
+    };
+    await sendNotification(
+      memberRows[0].user_id,
+      "🔧 Complaint Status Updated",
+      `Your complaint status ${statusLabel[status] ?? `changed to ${status}`}`,
+      "COMPLAINT",
+      id,
+    );
+  }
+
   return NextResponse.json({ ok: true });
 }

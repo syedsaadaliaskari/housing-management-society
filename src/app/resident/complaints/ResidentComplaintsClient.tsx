@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useCallback, type FormEvent } from "react";
 
 import {
   Card,
@@ -56,30 +56,45 @@ export function ResidentComplaintsClient() {
 
   const [complaintSubject, setComplaintSubject] = useState("");
   const [complaintDescription, setComplaintDescription] = useState("");
-  const [complaintPriority, setComplaintPriority] = useState<
-    string | undefined
-  >("MEDIUM");
+  const [complaintPriority, setComplaintPriority] = useState<string>("MEDIUM");
   const [submitting, setSubmitting] = useState(false);
 
+  // Extracted into useCallback so SSE listener can call it too
+  const loadComplaints = useCallback(async () => {
+    try {
+      const res = await fetch("/api/resident/complaints");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Failed to load complaints");
+      }
+      const data = (await res.json()) as ResidentComplaint[];
+      setComplaints(data);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("/api/resident/complaints");
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(body?.error ?? "Failed to load complaints");
-        }
-        const data = (await res.json()) as ResidentComplaint[];
-        setComplaints(data);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
+    loadComplaints();
+
+    // Connect to the existing SSE notification stream.
+    // When admin updates this resident's complaint status,
+    // a COMPLAINT notification fires — we re-fetch to show the new status live.
+    const es = new EventSource("/api/notifications/stream");
+
+    es.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === "COMPLAINT") {
+        loadComplaints();
       }
     };
 
-    load();
-  }, []);
+    es.onerror = () => es.close();
+
+    return () => es.close();
+  }, [loadComplaints]);
 
   const handleSubmitComplaint = async (event: FormEvent) => {
     event.preventDefault();
@@ -108,12 +123,7 @@ export function ResidentComplaintsClient() {
         return;
       }
 
-      const refreshed = await fetch("/api/resident/complaints");
-      if (refreshed.ok) {
-        const data = (await refreshed.json()) as ResidentComplaint[];
-        setComplaints(data);
-      }
-
+      await loadComplaints();
       setComplaintSubject("");
       setComplaintDescription("");
       setComplaintPriority("MEDIUM");
@@ -184,7 +194,7 @@ export function ResidentComplaintsClient() {
         <CardHeader>
           <CardTitle>My Complaints & Suggestions</CardTitle>
           <CardDescription>
-            Track the status of requests you have raised.
+            Status updates appear here automatically — no need to refresh.
           </CardDescription>
         </CardHeader>
         <CardContent>
