@@ -6,6 +6,8 @@ A full-stack web application for managing residential housing societies — buil
 
 [https://housing-management-s-git-f9faae-syed-saad-ali-askari-s-projects.vercel.app](https://housing-management-s-git-f9faae-syed-saad-ali-askari-s-projects.vercel.app)
 
+![CI](https://github.com/syedsaadaliaskari/housing-management-society/actions/workflows/ci.yml/badge.svg)
+
 **Admin login:**
 
 - Email: `saadadmin@society.com`
@@ -25,6 +27,8 @@ A full-stack web application for managing residential housing societies — buil
 - **Database:** PostgreSQL hosted on Neon
 - **Auth:** NextAuth v5 (JWT, bcrypt password hashing)
 - **UI:** shadcn/ui, Tailwind CSS v4, Recharts
+- **Payments:** Stripe (checkout sessions, server-side API routes)
+- **CI/CD:** GitHub Actions + Vercel
 - **Deployment:** Vercel
 
 ---
