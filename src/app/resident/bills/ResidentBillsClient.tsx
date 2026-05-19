@@ -92,6 +92,37 @@ export default function ResidentBillsClient() {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("success") === "true") {
+      const billId = params.get("billId");
+
+      if (billId) {
+        fetch("/api/resident/bills/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ billId: Number(billId) }),
+        }).then(() => {
+          fetch("/api/resident/bills")
+            .then((r) => r.json())
+            .then((data) => {
+              setBills(data);
+              setFilteredBills(data);
+            });
+        });
+      }
+
+      toast.success("Payment successful!");
+      window.history.replaceState({}, "", "/resident/bills");
+    }
+
+    if (params.get("cancelled") === "true") {
+      toast.error("Payment cancelled.");
+      window.history.replaceState({}, "", "/resident/bills");
+    }
+  }, []);
+
+  useEffect(() => {
     if (statusFilter === "ALL") {
       setFilteredBills(bills);
     } else {
@@ -102,6 +133,26 @@ export default function ResidentBillsClient() {
   const handlePayNow = async (bill: ResidentBill) => {
     setPayingBillId(bill.id);
     try {
+      if (payMethod === "STRIPE") {
+        const res = await fetch("/api/resident/bills/pay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            billId: bill.id,
+            amount: Number(bill.balance_amount),
+            description: `Bill for Unit ${bill.unit_number}`,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          toast.error("Failed to initiate Stripe payment");
+        }
+        return;
+      }
+
       const res = await fetch("/api/resident/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,7 +221,6 @@ export default function ResidentBillsClient() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
@@ -202,7 +252,6 @@ export default function ResidentBillsClient() {
         </Card>
       </div>
 
-      {/* Bills Table */}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -244,6 +293,7 @@ export default function ResidentBillsClient() {
                     <SelectItem value="UPI">UPI</SelectItem>
                     <SelectItem value="NET_BANKING">Net Banking</SelectItem>
                     <SelectItem value="CHEQUE">Cheque</SelectItem>
+                    <SelectItem value="STRIPE">Pay with Stripe</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -59,7 +59,6 @@ export function ResidentComplaintsClient() {
   const [complaintPriority, setComplaintPriority] = useState<string>("MEDIUM");
   const [submitting, setSubmitting] = useState(false);
 
-  // Extracted into useCallback so SSE listener can call it too
   const loadComplaints = useCallback(async () => {
     try {
       const res = await fetch("/api/resident/complaints");
